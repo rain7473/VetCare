@@ -109,6 +109,9 @@ python -m tests.triage_test
 
 # Pruebas de consultas e historial (Oracle con ROLLBACK, no persiste datos)
 python -m tests.consultations_test
+
+# Pruebas de calculadora farmacológica (Oracle con ROLLBACK, no persiste datos)
+python -m tests.pharmacology_test
 ```
 
 ### Herramienta de inspección de esquema (solo lectura)
@@ -132,3 +135,4 @@ python -m database.schema_inspector NOMBRE_TABLA [--rows N]
 | 9 | Citas | ✅ Completado |
 | 10 | Triaje | ✅ Completado |
 | 11 | Consultas e historial clínico | ✅ Completado |
+| 12 | Calculadora farmacológica | ✅ Completado |

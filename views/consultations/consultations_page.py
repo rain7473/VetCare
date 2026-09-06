@@ -26,10 +26,12 @@ from PySide6.QtWidgets import (
 from config.constants import CONSULTATION_STATUS_DISPLAY, Colors
 from database.connection import DatabaseConnectionError
 from models.consultation import Consultation, ConsultationVital, Diagnosis
-from services import consultation_service, permission_service
+from models.prescription import Prescription
+from services import consultation_service, permission_service, pharmacology_service
 from services.consultation_service import ConsultationFormData, VitalsFormData
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
+from views.consultations.calculator_dialog import CalculatorDialog
 from views.consultations.consultation_dialog import ConsultationDialog
 
 _COLUMNS = ["Fecha", "Paciente", "Propietario", "Veterinario", "Motivo", "Estado"]
@@ -155,14 +157,7 @@ class ConsultationsPage(QWidget):
 
         layout.addWidget(self._build_vitals_card())
         layout.addWidget(self._build_diagnoses_card())
-
-        presc = QLabel(
-            "Las prescripciones se registran con la calculadora farmacológica "
-            "(siguiente módulo). No se inventan dosis aquí."
-        )
-        presc.setObjectName("versionLabel")
-        presc.setWordWrap(True)
-        layout.addWidget(self._titled_card("Prescripciones", presc))
+        layout.addWidget(self._build_prescriptions_card())
 
         actions = QHBoxLayout()
         self.save_button = QPushButton("Guardar borrador")
@@ -258,6 +253,25 @@ class ConsultationsPage(QWidget):
         self.add_diagnosis_button.setProperty("variant", "secondary")
         self.add_diagnosis_button.clicked.connect(self._on_add_diagnosis)
         layout.addWidget(self.add_diagnosis_button, alignment=Qt.AlignLeft)
+        return card
+
+    def _build_prescriptions_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        title = QLabel("Prescripciones")
+        title.setObjectName("cardTitle")
+        layout.addWidget(title)
+
+        self.prescriptions_list = QLabel("Sin prescripciones registradas.")
+        self.prescriptions_list.setWordWrap(True)
+        self.prescriptions_list.setObjectName("versionLabel")
+        layout.addWidget(self.prescriptions_list)
+
+        self.calculator_button = QPushButton("Calculadora farmacológica")
+        self.calculator_button.setProperty("variant", "secondary")
+        self.calculator_button.clicked.connect(self._on_calculator)
+        layout.addWidget(self.calculator_button, alignment=Qt.AlignLeft)
         return card
 
     @staticmethod
@@ -374,9 +388,15 @@ class ConsultationsPage(QWidget):
         self.treatment_summary_input.setPlainText(consultation.treatment_summary or "")
         self.vitals_list.setText(self._format_vitals(vitals))
         self.diagnoses_list.setText(self._format_diagnoses(diagnoses))
+        try:
+            prescriptions = pharmacology_service.list_prescriptions(consultation.id)
+        except (PermissionDeniedError, DatabaseConnectionError):
+            prescriptions = []
+        self.prescriptions_list.setText(self._format_prescriptions(prescriptions))
         editable = consultation.status == "DRAFT" and self._can_write
         self._set_workspace_enabled(True, editable=editable)
         self.seal_button.setEnabled(consultation.status == "FINALIZED" and self._can_seal)
+        self.calculator_button.setEnabled(self._can_write)
         self.finalize_button.setEnabled(editable)
         self.save_button.setEnabled(editable)
         self.print_button.setEnabled(True)
@@ -422,6 +442,7 @@ class ConsultationsPage(QWidget):
         ]
         for widget in widgets:
             widget.setEnabled(has_selection and editable)
+        self.calculator_button.setEnabled(has_selection and self._can_write)
         self.seal_button.setEnabled(False)
         self.print_button.setEnabled(has_selection)
 
@@ -567,6 +588,13 @@ class ConsultationsPage(QWidget):
         self.primary_check.setChecked(False)
         self.refresh()
 
+    def _on_calculator(self) -> None:
+        consultation = self._selected()
+        if consultation is None:
+            return
+        if CalculatorDialog(consultation, parent=self).exec():
+            self.refresh()
+
     def _on_print(self) -> None:
         consultation = self._selected()
         if consultation is None:
@@ -635,6 +663,24 @@ class ConsultationsPage(QWidget):
             mark = "Principal · " if diagnosis.is_primary else ""
             code = f"{diagnosis.diagnostic_code} — " if diagnosis.diagnostic_code else ""
             lines.append(f"{mark}{code}{diagnosis.description}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_prescriptions(prescriptions: list[Prescription]) -> str:
+        if not prescriptions:
+            return "Sin prescripciones registradas."
+        lines = []
+        for item in prescriptions:
+            total = (
+                f"{item.calculated_total_dose} {item.dose_unit or ''}".strip()
+                if item.calculated_total_dose is not None
+                else "—"
+            )
+            volume = ""
+            if item.calculated_volume is not None:
+                volume = f" · {item.calculated_volume} {item.volume_unit or ''}".rstrip()
+            freq = f" · {item.frequency_text}" if item.frequency_text else ""
+            lines.append(f"{item.medication_name}: {total}{volume}{freq}")
         return "\n".join(lines)
 
     @staticmethod
