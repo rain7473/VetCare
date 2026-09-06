@@ -80,7 +80,11 @@ python main.py
 ## Pruebas
 
 ```powershell
+# Prueba de humo de la interfaz (no requiere Oracle)
 python -m tests.smoke_test
+
+# Prueba de conexión a Oracle (requiere .env completo y Oracle XE activo)
+python -m tests.db_health_test
 ```
 
 ## Estado del proyecto
@@ -88,7 +92,7 @@ python -m tests.smoke_test
 | Objetivo | Descripción | Estado |
 |---|---|---|
 | 1 | Estructura y configuración del proyecto | ✅ Completado |
-| 2 | Conexión Python → Oracle | Pendiente |
+| 2 | Conexión Python → Oracle | ✅ Completado |
 | 3 | Configuración inicial / primer ADMIN | Pendiente |
 | 4 | Login y autenticación | Pendiente |
 | 5 | Shell principal (sidebar, topbar, navegación) | Pendiente |
