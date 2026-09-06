@@ -115,6 +115,9 @@ python -m tests.pharmacology_test
 
 # Pruebas de control quirúrgico (Oracle con ROLLBACK, no persiste datos)
 python -m tests.surgery_test
+
+# Pruebas de vacunas (Oracle con ROLLBACK, no persiste datos)
+python -m tests.vaccines_test
 ```
 
 ### Herramienta de inspección de esquema (solo lectura)
@@ -140,3 +143,4 @@ python -m database.schema_inspector NOMBRE_TABLA [--rows N]
 | 11 | Consultas e historial clínico | ✅ Completado |
 | 12 | Calculadora farmacológica | ✅ Completado |
 | 13 | Cirugía | ✅ Completado |
+| 14 | Vacunas | ✅ Completado |

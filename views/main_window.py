@@ -28,6 +28,7 @@ from views.pets.pets_page import PetsPage
 from views.placeholder_page import PlaceholderPage
 from views.triage.triage_page import TriagePage
 from views.users.users_page import UsersPage
+from views.vaccines.vaccines_page import VaccinesPage
 from widgets.sidebar import Sidebar
 from widgets.topbar import Topbar
 
@@ -35,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
 _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
-    "vaccines": ("Vacunas", 14),
     "hospitalization": ("Hospitalización", 15),
     "inventory": ("Inventario", 19),
     "sales": ("Ventas", 21),
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
             pets_page = PetsPage()
             pets_page.open_consultation_requested.connect(self._open_consultation_for_pet)
             pets_page.open_history_requested.connect(self._open_consultation_history)
+            pets_page.open_vaccination_requested.connect(self._open_vaccination_for_pet)
             self._add_page("pets", pets_page)
         if "appointments" in allowed:
             self._add_page("appointments", AppointmentsPage())
@@ -95,6 +96,8 @@ class MainWindow(QMainWindow):
             self._add_page("triage", TriagePage())
         if "consultations" in allowed:
             self._add_page("consultations", ConsultationsPage())
+        if "vaccines" in allowed:
+            self._add_page("vaccines", VaccinesPage())
         if "users" in allowed:
             self._add_page("users", UsersPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():
@@ -129,6 +132,16 @@ class MainWindow(QMainWindow):
             return
         self.navigate_to("consultations")
         page = self.stack.widget(self._page_index["consultations"])
+        page.start_for_pet(pet_id)
+
+    def _open_vaccination_for_pet(self, pet_id: int) -> None:
+        if not permission_service.can_access_module("vaccines"):
+            QMessageBox.warning(
+                self, APP_NAME, "Permiso denegado: no puede gestionar vacunas."
+            )
+            return
+        self.navigate_to("vaccines")
+        page = self.stack.widget(self._page_index["vaccines"])
         page.start_for_pet(pet_id)
 
     def _open_consultation_history(self, pet_name: str) -> None:

@@ -46,6 +46,7 @@ class PetsPage(QWidget):
 
     open_consultation_requested = Signal(int)
     open_history_requested = Signal(str)
+    open_vaccination_requested = Signal(int)
 
     def __init__(self) -> None:
         super().__init__()
@@ -221,9 +222,15 @@ class PetsPage(QWidget):
         self.history_button.clicked.connect(self._on_view_history)
         quick.addWidget(self.history_button)
 
+        can_vaccine = permission_service.has_permission("VACCINES_MANAGE")
         vaccine_button = QPushButton("Vacunar")
-        vaccine_button.setEnabled(False)
-        vaccine_button.setToolTip("Disponible en el Objetivo 14")
+        vaccine_button.setEnabled(can_vaccine)
+        vaccine_button.setToolTip(
+            "Registrar una vacuna para esta mascota"
+            if can_vaccine
+            else "Sin permiso para gestionar vacunas"
+        )
+        vaccine_button.clicked.connect(self._on_vaccinate)
         quick.addWidget(vaccine_button)
         layout.addLayout(quick)
 
@@ -361,6 +368,12 @@ class PetsPage(QWidget):
             )
             return None
         return owners, species
+
+    def _on_vaccinate(self) -> None:
+        if self._selected is None:
+            QMessageBox.information(self, "Mascotas", "Seleccione una mascota primero.")
+            return
+        self.open_vaccination_requested.emit(self._selected.id)
 
     def _on_new_consultation(self) -> None:
         if self._selected is None:
