@@ -322,6 +322,20 @@ QLabel#statIcon {
     background: transparent;
 }
 
+QLabel#profileName {
+    color: #102A43;
+    font-size: 20px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QLabel#photoPreview {
+    background-color: #E6F6F8;
+    border: 1px solid #C9E8EC;
+    border-radius: 12px;
+    font-size: 30px;
+}
+
 /* ============================================================
    Ventana de inicio (views/startup)
    ============================================================ */

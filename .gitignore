@@ -23,6 +23,9 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+# Datos locales de la aplicación (fotos, archivos generados)
+data/
+
 # Temporales
 *.log
 *.tmp

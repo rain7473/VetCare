@@ -19,6 +19,19 @@ ROLE_DISPLAY_NAMES = {
     "SALES": "Ventas",
 }
 
+# Valores de PETS.SEX y PETS.STATUS (checks en Oracle) → texto de interfaz.
+PET_SEX_DISPLAY = {
+    "MALE": "Macho",
+    "FEMALE": "Hembra",
+    "UNKNOWN": "Desconocido",
+}
+
+PET_STATUS_DISPLAY = {
+    "ACTIVE": "Activa",
+    "DECEASED": "Fallecida",
+    "INACTIVE": "Inactiva",
+}
+
 
 class Colors:
     """Paleta oficial de VetCare (identidad teal / turquesa / mint)."""

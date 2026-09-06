@@ -97,6 +97,9 @@ python -m tests.permissions_test
 
 # Pruebas de propietarios (Oracle con ROLLBACK, no persiste datos)
 python -m tests.owners_test
+
+# Pruebas de mascotas (Oracle con ROLLBACK, no persiste datos)
+python -m tests.pets_test
 ```
 
 ### Herramienta de inspección de esquema (solo lectura)
@@ -116,4 +119,5 @@ python -m database.schema_inspector NOMBRE_TABLA [--rows N]
 | 5 | Shell principal (sidebar, topbar, navegación) | ✅ Completado |
 | 6 | Usuarios, roles y permisos | ✅ Completado |
 | 7 | Propietarios | ✅ Completado |
-| 8 | Mascotas | Pendiente |
+| 8 | Mascotas | ✅ Completado |
+| 9 | Citas | Pendiente |
