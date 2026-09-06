@@ -103,6 +103,9 @@ python -m tests.pets_test
 
 # Pruebas de citas (Oracle con ROLLBACK, no persiste datos)
 python -m tests.appointments_test
+
+# Pruebas de triaje (Oracle con ROLLBACK, no persiste datos)
+python -m tests.triage_test
 ```
 
 ### Herramienta de inspección de esquema (solo lectura)
@@ -124,4 +127,5 @@ python -m database.schema_inspector NOMBRE_TABLA [--rows N]
 | 7 | Propietarios | ✅ Completado |
 | 8 | Mascotas | ✅ Completado |
 | 9 | Citas | ✅ Completado |
-| 10 | Triaje | Pendiente |
+| 10 | Triaje | ✅ Completado |
+| 11 | Consultas e historial clínico | Pendiente |

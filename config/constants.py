@@ -32,6 +32,21 @@ PET_STATUS_DISPLAY = {
     "INACTIVE": "Inactiva",
 }
 
+# Niveles de prioridad de triaje (TRIAGES.PRIORITY_LEVEL, check 1..4).
+TRIAGE_PRIORITY_DISPLAY = {
+    1: "P1 · Crítico",
+    2: "P2 · Urgente",
+    3: "P3 · Prioritario",
+    4: "P4 · Normal",
+}
+
+# Estados de consciencia registrados en triaje (VARCHAR2 libre; catálogo app).
+CONSCIOUSNESS_DISPLAY = {
+    "ALERT": "Alerta",
+    "DEPRESSED": "Deprimido/letárgico",
+    "UNCONSCIOUS": "Inconsciente",
+}
+
 # Estados de APPOINTMENTS.STATUS (check en Oracle) → texto de interfaz.
 APPOINTMENT_STATUS_DISPLAY = {
     "SCHEDULED": "Programada",
