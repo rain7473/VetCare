@@ -27,6 +27,7 @@ from views.hospitalization.hospitalization_dialogs import (
     AreaDialog,
     SpaceDialog,
 )
+from views.hospitalization.monitoring_dialog import MonitoringDialog, VitalRangeDialog
 
 _COLUMNS = [
     "Ingreso",
@@ -110,6 +111,8 @@ class HospitalizationPage(QWidget):
         actions.addStretch()
         for text, handler in [
             ("Editar", self._on_edit),
+            ("Monitoreo", self._on_monitoring),
+            ("Rangos vitales", self._on_ranges),
             ("Observación", lambda: self._on_status("OBSERVATION")),
             ("Crítico", lambda: self._on_status("CRITICAL")),
             ("Dar de alta", lambda: self._on_status("DISCHARGED")),
@@ -122,8 +125,8 @@ class HospitalizationPage(QWidget):
         layout.addLayout(actions)
 
         note = QLabel(
-            "El monitoreo de signos vitales se registra en el módulo de monitoreo "
-            "(Objetivo 16)."
+            "Las alertas clínicas solo se generan si existen rangos en VITAL_RANGES. "
+            "Configure rangos antes de esperar alertas automáticas."
         )
         note.setObjectName("versionLabel")
         layout.addWidget(note)
@@ -256,6 +259,28 @@ class HospitalizationPage(QWidget):
             pets, vets, spaces, hospitalization=item, parent=self
         ).exec():
             self.refresh()
+
+    def _on_monitoring(self) -> None:
+        item = self._selected()
+        if item is None:
+            return
+        if item.status in {"DISCHARGED", "TRANSFERRED"}:
+            QMessageBox.information(
+                self,
+                "Hospitalización",
+                "Solo se monitorean ingresos activos.",
+            )
+            return
+        MonitoringDialog(item, parent=self).exec()
+        self.refresh()
+
+    def _on_ranges(self) -> None:
+        if VitalRangeDialog(parent=self).exec():
+            QMessageBox.information(
+                self,
+                "Hospitalización",
+                "Rango vital guardado. Las próximas mediciones usarán ese umbral.",
+            )
 
     def _on_status(self, new_status: str) -> None:
         item = self._selected()
