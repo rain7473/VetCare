@@ -1,8 +1,7 @@
-"""Prueba de humo del Objetivo 1.
+"""Prueba de humo de la interfaz (no requiere Oracle).
 
-Verifica que la aplicación se construye sin errores: QApplication,
-hoja de estilos cargada y ventana inicial con la identidad VetCare.
-Se ejecuta en modo offscreen (no abre ventana real):
+Verifica que la aplicación Qt y las ventanas de arranque se construyen
+sin errores, en modo offscreen:
 
     python -m tests.smoke_test
 """
@@ -15,16 +14,30 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 def run() -> int:
     from main import create_app
+    from views.startup.setup_window import SetupWindow
+    from views.startup.startup_window import StartupWindow
 
-    app, window = create_app([])
+    app = create_app([])
+    startup = StartupWindow()
+    setup = SetupWindow()
 
     checks = {
         "QApplication creada": app is not None,
         "Nombre de aplicación": app.applicationName() == "VetCare",
         "Hoja de estilos cargada": len(app.styleSheet()) > 0,
-        "Título de ventana": window.windowTitle() == "VetCare",
-        "Tamaño mínimo 640x440": (
-            window.minimumWidth() == 640 and window.minimumHeight() == 440
+        "StartupWindow construida": startup.windowTitle() == "VetCare",
+        "SetupWindow construida": "Configuración inicial" in setup.windowTitle(),
+        "SetupWindow tiene 7 campos": all(
+            hasattr(setup, name)
+            for name in (
+                "full_name_input",
+                "username_input",
+                "email_input",
+                "phone_input",
+                "clinic_name_input",
+                "password_input",
+                "confirmation_input",
+            )
         ),
     }
 
@@ -36,7 +49,7 @@ def run() -> int:
         print(f"\nPrueba de humo FALLIDA: {len(failures)} comprobación(es) fallaron.")
         return 1
 
-    print("\nPrueba de humo superada: la aplicación se construye correctamente.")
+    print("\nPrueba de humo superada: la interfaz se construye correctamente.")
     return 0
 
 

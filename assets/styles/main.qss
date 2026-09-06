@@ -94,6 +94,27 @@ QToolTip {
     padding: 6px 10px;
 }
 
+/* ---------- Títulos de pantalla y mensajes ---------- */
+
+QLabel#screenTitle {
+    color: #006978;
+    font-size: 26px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QLabel#screenSubtitle {
+    color: #6B8194;
+    font-size: 15px;
+    background: transparent;
+}
+
+QLabel#errorLabel {
+    color: #E5484D;
+    font-size: 13px;
+    background: transparent;
+}
+
 /* ============================================================
    Ventana de inicio (views/startup)
    ============================================================ */

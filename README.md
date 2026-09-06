@@ -85,6 +85,9 @@ python -m tests.smoke_test
 
 # Prueba de conexión a Oracle (requiere .env completo y Oracle XE activo)
 python -m tests.db_health_test
+
+# Pruebas de configuración inicial (validaciones + Oracle con ROLLBACK, no persiste datos)
+python -m tests.bootstrap_test
 ```
 
 ## Estado del proyecto
@@ -93,6 +96,6 @@ python -m tests.db_health_test
 |---|---|---|
 | 1 | Estructura y configuración del proyecto | ✅ Completado |
 | 2 | Conexión Python → Oracle | ✅ Completado |
-| 3 | Configuración inicial / primer ADMIN | Pendiente |
+| 3 | Configuración inicial / primer ADMIN | ✅ Completado |
 | 4 | Login y autenticación | Pendiente |
 | 5 | Shell principal (sidebar, topbar, navegación) | Pendiente |
