@@ -1,0 +1,140 @@
+/* ============================================================
+   VetCare — Hoja de estilos base (QSS)
+   Identidad: teal oscuro / turquesa / cyan / mint sobre fondos
+   claros, cards blancas y texto slate.
+   Paleta (ver config/constants.py):
+     Primary Dark #006978 | Primary #008FA3 | Secondary #14B8C4
+     Mint #63D7B0 | Background #F5FAFC | Card #FFFFFF
+     Text Dark #102A43 | Muted #6B8194
+   ============================================================ */
+
+QWidget {
+    font-family: "Segoe UI", "Inter", sans-serif;
+    font-size: 14px;
+    color: #102A43;
+}
+
+QMainWindow, QDialog, QWidget#appBackground {
+    background-color: #F5FAFC;
+}
+
+/* ---------- Cards ---------- */
+
+QFrame[card="true"] {
+    background-color: #FFFFFF;
+    border: 1px solid #E3EEF3;
+    border-radius: 16px;
+}
+
+/* ---------- Botones ---------- */
+
+QPushButton {
+    background-color: #008FA3;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    background-color: #14B8C4;
+}
+
+QPushButton:pressed {
+    background-color: #006978;
+}
+
+QPushButton:disabled {
+    background-color: #C3D4DD;
+    color: #F5FAFC;
+}
+
+QPushButton[variant="secondary"] {
+    background-color: transparent;
+    color: #008FA3;
+    border: 2px solid #008FA3;
+}
+
+QPushButton[variant="secondary"]:hover {
+    background-color: #E6F6F8;
+}
+
+QPushButton[variant="secondary"]:pressed {
+    background-color: #CDEDF1;
+}
+
+/* ---------- Campos de texto ---------- */
+
+QLineEdit, QTextEdit, QComboBox, QDateEdit, QDateTimeEdit {
+    background-color: #FFFFFF;
+    border: 1px solid #C3D4DD;
+    border-radius: 10px;
+    padding: 9px 12px;
+    selection-background-color: #14B8C4;
+}
+
+QLineEdit:focus, QTextEdit:focus, QComboBox:focus,
+QDateEdit:focus, QDateTimeEdit:focus {
+    border: 2px solid #008FA3;
+}
+
+QLineEdit:disabled, QTextEdit:disabled, QComboBox:disabled {
+    background-color: #EEF4F7;
+    color: #6B8194;
+}
+
+/* ---------- Tooltips ---------- */
+
+QToolTip {
+    background-color: #102A43;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+/* ============================================================
+   Ventana de inicio (views/startup)
+   ============================================================ */
+
+QLabel#logoBadge {
+    background-color: #008FA3;
+    color: #FFFFFF;
+    border-radius: 36px;
+    font-size: 30px;
+}
+
+QLabel#appTitle {
+    color: #006978;
+    font-size: 36px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QLabel#appSubtitle {
+    color: #102A43;
+    font-size: 16px;
+    background: transparent;
+}
+
+QFrame#accentLine {
+    background-color: #63D7B0;
+    border: none;
+    border-radius: 2px;
+    max-height: 4px;
+    min-height: 4px;
+}
+
+QLabel#appTagline {
+    color: #008FA3;
+    font-size: 14px;
+    font-style: italic;
+    background: transparent;
+}
+
+QLabel#versionLabel {
+    color: #6B8194;
+    font-size: 12px;
+    background: transparent;
+}
