@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from config import settings
 from config.constants import APP_NAME, APP_VERSION
 from database.connection import DatabaseConnectionError
+from views.login.login_window import LoginWindow
 from views.startup.setup_window import SetupWindow
 from views.startup.startup_window import StartupWindow
 
@@ -48,20 +49,31 @@ def select_first_window() -> QWidget:
     from services import bootstrap_service
 
     if bootstrap_service.users_exist():
-        # Objetivo 4: aquí irá el login.
-        return StartupWindow()
+        return _build_login_window()
 
     setup = SetupWindow()
-    setup.admin_created.connect(lambda: _after_admin_created(setup))
+    setup.admin_created.connect(lambda: _swap_window(setup, _build_login_window()))
     return setup
 
 
-def _after_admin_created(setup: SetupWindow) -> None:
-    """Tras crear el ADMIN, cerrar la configuración y pasar a la siguiente pantalla."""
-    next_window = StartupWindow()  # Objetivo 4: será el login.
-    setup.close()
+def _build_login_window() -> LoginWindow:
+    login = LoginWindow()
+    login.login_succeeded.connect(
+        lambda user: _swap_window(login, _build_main_window(user))
+    )
+    return login
+
+
+def _build_main_window(user) -> QWidget:
+    """Pantalla posterior al login (Objetivo 5: shell principal)."""
+    logger.info("Sesión iniciada: %s", user.username)
+    return StartupWindow()  # Placeholder hasta el Objetivo 5.
+
+
+def _swap_window(current: QWidget, next_window: QWidget) -> None:
+    """Cierra la ventana actual y muestra la siguiente conservando la referencia."""
     next_window.show()
-    # Mantener referencia para que Qt no destruya la ventana.
+    current.close()
     QApplication.instance().setProperty("main_window", next_window)
 
 

@@ -21,3 +21,4 @@ class User:
     last_login_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    role_name: str | None = None

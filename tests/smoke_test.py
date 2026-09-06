@@ -14,12 +14,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 def run() -> int:
     from main import create_app
+    from views.login.login_window import LoginWindow
     from views.startup.setup_window import SetupWindow
     from views.startup.startup_window import StartupWindow
 
     app = create_app([])
     startup = StartupWindow()
     setup = SetupWindow()
+    login = LoginWindow()
 
     checks = {
         "QApplication creada": app is not None,
@@ -27,6 +29,7 @@ def run() -> int:
         "Hoja de estilos cargada": len(app.styleSheet()) > 0,
         "StartupWindow construida": startup.windowTitle() == "VetCare",
         "SetupWindow construida": "Configuración inicial" in setup.windowTitle(),
+        "LoginWindow construida": "Iniciar sesión" in login.windowTitle(),
         "SetupWindow tiene 7 campos": all(
             hasattr(setup, name)
             for name in (

@@ -7,6 +7,57 @@ que varias operaciones puedan participar en una misma transacción
 
 import oracledb
 
+from models.user import User
+
+
+def find_auth_by_username(
+    conn: oracledb.Connection, username: str
+) -> tuple[User, str] | None:
+    """Busca un usuario por nombre (con su rol) para autenticación.
+
+    Devuelve ``(User, password_hash)`` o ``None`` si no existe.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT u.id, u.role_id, u.username, u.email, u.password_hash,
+                   u.full_name, u.phone, u.is_active, u.last_login_at,
+                   u.created_at, u.updated_at, r.name AS role_name
+            FROM users u
+            JOIN roles r ON r.id = u.role_id
+            WHERE LOWER(u.username) = :username
+            """,
+            {"username": username.lower()},
+        )
+        row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    user = User(
+        id=row[0],
+        role_id=row[1],
+        username=row[2],
+        email=row[3],
+        full_name=row[5],
+        phone=row[6],
+        is_active=bool(row[7]),
+        last_login_at=row[8],
+        created_at=row[9],
+        updated_at=row[10],
+        role_name=row[11],
+    )
+    return user, row[4]
+
+
+def update_last_login(conn: oracledb.Connection, user_id: int) -> None:
+    """Registra el momento del último inicio de sesión. No hace COMMIT."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE users SET last_login_at = SYSTIMESTAMP WHERE id = :id",
+            {"id": user_id},
+        )
+
 
 def count_users(conn: oracledb.Connection) -> int:
     """Total de usuarios registrados (activos e inactivos)."""
