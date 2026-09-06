@@ -116,6 +116,181 @@ QLabel#errorLabel {
 }
 
 /* ============================================================
+   Shell principal: sidebar, topbar, páginas
+   ============================================================ */
+
+QFrame#sidebar {
+    background-color: #006978;
+    border: none;
+}
+
+QLabel#sidebarTitle {
+    color: #FFFFFF;
+    font-size: 21px;
+    font-weight: 800;
+    background: transparent;
+    padding-left: 6px;
+}
+
+QLabel#sidebarSubtitle {
+    color: #9FD4DC;
+    font-size: 12px;
+    background: transparent;
+    padding-left: 6px;
+}
+
+QLabel#sidebarFooter {
+    color: #9FD4DC;
+    font-size: 11px;
+    font-style: italic;
+    background: transparent;
+    padding: 6px;
+}
+
+QPushButton[nav="true"] {
+    background-color: transparent;
+    color: #CFE9EE;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+QPushButton[nav="true"]:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #FFFFFF;
+}
+
+QPushButton[nav="true"]:checked {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #FFFFFF;
+    font-weight: 700;
+}
+
+QFrame#topbar {
+    background-color: #FFFFFF;
+    border: none;
+    border-bottom: 1px solid #E3EEF3;
+}
+
+QLineEdit#globalSearch {
+    background-color: #F0F6F9;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 6px 16px;
+}
+
+QLineEdit#globalSearch:focus {
+    border: 2px solid #14B8C4;
+    background-color: #FFFFFF;
+}
+
+QPushButton#notifButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    padding: 0;
+}
+
+QPushButton#notifButton:hover {
+    background-color: #EEF6F8;
+}
+
+QFrame#userChip {
+    background-color: transparent;
+    border: none;
+    border-radius: 12px;
+}
+
+QLabel#avatarBadge {
+    background-color: #14B8C4;
+    color: #FFFFFF;
+    border-radius: 18px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+QLabel#topbarUserName {
+    color: #102A43;
+    font-size: 13px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#topbarUserRole {
+    color: #6B8194;
+    font-size: 11px;
+    background: transparent;
+}
+
+QPushButton#userMenuButton {
+    background-color: transparent;
+    color: #6B8194;
+    border: none;
+    font-size: 14px;
+    padding: 0;
+}
+
+QPushButton#userMenuButton::menu-indicator {
+    image: none;
+}
+
+QPushButton#userMenuButton:hover {
+    color: #006978;
+}
+
+QMenu {
+    background-color: #FFFFFF;
+    border: 1px solid #E3EEF3;
+    border-radius: 8px;
+    padding: 6px;
+}
+
+QMenu::item {
+    padding: 8px 18px;
+    border-radius: 6px;
+    color: #102A43;
+}
+
+QMenu::item:selected {
+    background-color: #E6F6F8;
+    color: #006978;
+}
+
+QWidget#pageArea {
+    background-color: #F5FAFC;
+}
+
+QLabel#pageTitle {
+    color: #006978;
+    font-size: 22px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QLabel#statTitle {
+    color: #6B8194;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+}
+
+QLabel#statValue {
+    color: #102A43;
+    font-size: 26px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QLabel#statIcon {
+    font-size: 22px;
+    background: transparent;
+}
+
+/* ============================================================
    Ventana de inicio (views/startup)
    ============================================================ */
 

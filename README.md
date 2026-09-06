@@ -101,4 +101,4 @@ python -m tests.auth_test
 | 2 | Conexión Python → Oracle | ✅ Completado |
 | 3 | Configuración inicial / primer ADMIN | ✅ Completado |
 | 4 | Login y autenticación | ✅ Completado |
-| 5 | Shell principal (sidebar, topbar, navegación) | Pendiente |
+| 5 | Shell principal (sidebar, topbar, navegación) | ✅ Completado |

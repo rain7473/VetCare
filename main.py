@@ -20,7 +20,6 @@ from config.constants import APP_NAME, APP_VERSION
 from database.connection import DatabaseConnectionError
 from views.login.login_window import LoginWindow
 from views.startup.setup_window import SetupWindow
-from views.startup.startup_window import StartupWindow
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +64,25 @@ def _build_login_window() -> LoginWindow:
 
 
 def _build_main_window(user) -> QWidget:
-    """Pantalla posterior al login (Objetivo 5: shell principal)."""
+    """Shell principal tras un login exitoso."""
+    from services import session
+    from views.main_window import MainWindow
+
+    session.set_current_user(user)
     logger.info("Sesión iniciada: %s", user.username)
-    return StartupWindow()  # Placeholder hasta el Objetivo 5.
+
+    window = MainWindow(user)
+    window.logout_requested.connect(lambda: _on_logout(window))
+    return window
+
+
+def _on_logout(window: QWidget) -> None:
+    """Cierra la sesión actual y vuelve al login."""
+    from services import session
+
+    session.clear()
+    logger.info("Sesión cerrada.")
+    _swap_window(window, _build_login_window())
 
 
 def _swap_window(current: QWidget, next_window: QWidget) -> None:

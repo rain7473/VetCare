@@ -11,6 +11,14 @@ APP_DESCRIPTION = "Sistema de Gestión Integral Veterinaria"
 APP_FOOTER_MOTTO = "Animales más sanos, vidas más felices"
 APP_VERSION = "0.1.0"
 
+# Nombres de rol para mostrar en la interfaz (los códigos viven en ROLES).
+ROLE_DISPLAY_NAMES = {
+    "ADMIN": "Administrador",
+    "RECEPTION": "Recepción",
+    "VETERINARIAN": "Veterinario/a",
+    "SALES": "Ventas",
+}
+
 
 class Colors:
     """Paleta oficial de VetCare (identidad teal / turquesa / mint)."""
