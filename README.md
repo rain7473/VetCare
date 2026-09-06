@@ -94,6 +94,9 @@ python -m tests.auth_test
 
 # Pruebas de usuarios, roles y permisos (Oracle con ROLLBACK, no persiste datos)
 python -m tests.permissions_test
+
+# Pruebas de propietarios (Oracle con ROLLBACK, no persiste datos)
+python -m tests.owners_test
 ```
 
 ### Herramienta de inspección de esquema (solo lectura)
@@ -111,3 +114,6 @@ python -m database.schema_inspector NOMBRE_TABLA [--rows N]
 | 3 | Configuración inicial / primer ADMIN | ✅ Completado |
 | 4 | Login y autenticación | ✅ Completado |
 | 5 | Shell principal (sidebar, topbar, navegación) | ✅ Completado |
+| 6 | Usuarios, roles y permisos | ✅ Completado |
+| 7 | Propietarios | ✅ Completado |
+| 8 | Mascotas | Pendiente |

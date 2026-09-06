@@ -68,6 +68,32 @@ def validate_phone_optional(phone: str) -> str | None:
     return value
 
 
+def validate_phone_required(phone: str, label: str = "El teléfono") -> str:
+    value = validate_phone_optional(phone)
+    if value is None:
+        raise ValidationError(f"{label} es obligatorio.")
+    return value
+
+
+def validate_required_text(value: str, label: str, max_length: int) -> str:
+    """Texto obligatorio con longitud máxima; mensaje con el nombre del campo."""
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValidationError(f"{label} es obligatorio.")
+    if len(cleaned) > max_length:
+        raise ValidationError(f"{label} no puede superar {max_length} caracteres.")
+    return cleaned
+
+
+def validate_optional_text(value: str, label: str, max_length: int) -> str | None:
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > max_length:
+        raise ValidationError(f"{label} no puede superar {max_length} caracteres.")
+    return cleaned
+
+
 def validate_password(password: str, confirmation: str) -> str:
     if not password:
         raise ValidationError("La contraseña es obligatoria.")

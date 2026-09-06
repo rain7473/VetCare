@@ -26,6 +26,11 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# Los CLOB/BLOB se devuelven como str/bytes directamente (sin objetos LOB),
+# lo que simplifica el trabajo con columnas de texto largo (direcciones,
+# notas, descripciones).
+oracledb.defaults.fetch_lobs = False
+
 
 class DatabaseConnectionError(Exception):
     """No fue posible conectar o comunicarse con Oracle.

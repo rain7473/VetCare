@@ -81,6 +81,7 @@ def run() -> int:
         "Sidebar define 12 módulos": len(NAV_ITEMS) == 12,
         "Stack ADMIN con 12 páginas": main_window.stack.count() == 12,
         "Shell SALES con 3 páginas": sales_window.stack.count() == 3,
+        "Página Propietarios integrada": "owners" in main_window._page_index,
         "Navegación cambia de página": index_before != index_after,
         "Topbar muestra al usuario": (
             main_window.topbar._user.full_name == "Usuaria Demo"

@@ -21,6 +21,7 @@ from config.constants import APP_NAME
 from models.user import User
 from services import permission_service
 from views.dashboard.dashboard_page import DashboardPage
+from views.owners.owners_page import OwnersPage
 from views.placeholder_page import PlaceholderPage
 from views.users.users_page import UsersPage
 from widgets.sidebar import Sidebar
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
 _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
-    "owners": ("Propietarios", 7),
     "pets": ("Mascotas", 8),
     "appointments": ("Citas", 9),
     "triage": ("Triaje", 10),
@@ -82,6 +82,8 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self._add_page("dashboard", DashboardPage(self._user))
+        if "owners" in allowed:
+            self._add_page("owners", OwnersPage())
         if "users" in allowed:
             self._add_page("users", UsersPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():
