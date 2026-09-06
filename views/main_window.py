@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from config.constants import APP_NAME
 from models.user import User
 from services import permission_service
+from views.appointments.appointments_page import AppointmentsPage
 from views.dashboard.dashboard_page import DashboardPage
 from views.owners.owners_page import OwnersPage
 from views.pets.pets_page import PetsPage
@@ -32,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
 _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
-    "appointments": ("Citas", 9),
     "triage": ("Triaje", 10),
     "consultations": ("Consultas", 11),
     "vaccines": ("Vacunas", 14),
@@ -86,6 +86,8 @@ class MainWindow(QMainWindow):
             self._add_page("owners", OwnersPage())
         if "pets" in allowed:
             self._add_page("pets", PetsPage())
+        if "appointments" in allowed:
+            self._add_page("appointments", AppointmentsPage())
         if "users" in allowed:
             self._add_page("users", UsersPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():

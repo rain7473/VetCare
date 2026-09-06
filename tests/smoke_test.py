@@ -83,6 +83,7 @@ def run() -> int:
         "Shell SALES con 3 páginas": sales_window.stack.count() == 3,
         "Página Propietarios integrada": "owners" in main_window._page_index,
         "Página Mascotas integrada": "pets" in main_window._page_index,
+        "Página Citas integrada": "appointments" in main_window._page_index,
         "Navegación cambia de página": index_before != index_after,
         "Topbar muestra al usuario": (
             main_window.topbar._user.full_name == "Usuaria Demo"

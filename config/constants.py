@@ -32,6 +32,16 @@ PET_STATUS_DISPLAY = {
     "INACTIVE": "Inactiva",
 }
 
+# Estados de APPOINTMENTS.STATUS (check en Oracle) → texto de interfaz.
+APPOINTMENT_STATUS_DISPLAY = {
+    "SCHEDULED": "Programada",
+    "CONFIRMED": "Confirmada",
+    "IN_ATTENTION": "En atención",
+    "COMPLETED": "Completada",
+    "CANCELLED": "Cancelada",
+    "NO_SHOW": "No asistió",
+}
+
 
 class Colors:
     """Paleta oficial de VetCare (identidad teal / turquesa / mint)."""

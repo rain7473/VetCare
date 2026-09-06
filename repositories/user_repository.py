@@ -79,6 +79,17 @@ def update_last_login(conn: oracledb.Connection, user_id: int) -> None:
         )
 
 
+def list_active_by_role(conn: oracledb.Connection, role_name: str) -> list[User]:
+    """Usuarios activos de un rol dado (p. ej. veterinarios)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            _USER_SELECT
+            + " WHERE r.name = :role_name AND u.is_active = 1 ORDER BY u.full_name",
+            {"role_name": role_name},
+        )
+        return [_row_to_user(row) for row in cur.fetchall()]
+
+
 def count_users(conn: oracledb.Connection) -> int:
     """Total de usuarios registrados (activos e inactivos)."""
     with conn.cursor() as cur:
