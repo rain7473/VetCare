@@ -87,6 +87,7 @@ def run() -> int:
         "Página Triaje integrada": "triage" in main_window._page_index,
         "Página Consultas integrada": "consultations" in main_window._page_index,
         "Página Vacunas integrada": "vaccines" in main_window._page_index,
+        "Página Hospitalización integrada": "hospitalization" in main_window._page_index,
         "Navegación cambia de página": index_before != index_after,
         "Topbar muestra al usuario": (
             main_window.topbar._user.full_name == "Usuaria Demo"

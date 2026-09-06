@@ -62,6 +62,15 @@ SURGERY_STATUS_DISPLAY = {
     "CANCELLED": "Cancelada",
 }
 
+# Estados de HOSPITALIZATIONS.STATUS (check en Oracle) → texto de interfaz.
+HOSPITALIZATION_STATUS_DISPLAY = {
+    "ADMITTED": "Ingresado",
+    "OBSERVATION": "Observación",
+    "CRITICAL": "Crítico",
+    "DISCHARGED": "Alta",
+    "TRANSFERRED": "Transferido",
+}
+
 # Estados de APPOINTMENTS.STATUS (check en Oracle) → texto de interfaz.
 APPOINTMENT_STATUS_DISPLAY = {
     "SCHEDULED": "Programada",

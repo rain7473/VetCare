@@ -23,6 +23,7 @@ from services import permission_service
 from views.appointments.appointments_page import AppointmentsPage
 from views.consultations.consultations_page import ConsultationsPage
 from views.dashboard.dashboard_page import DashboardPage
+from views.hospitalization.hospitalization_page import HospitalizationPage
 from views.owners.owners_page import OwnersPage
 from views.pets.pets_page import PetsPage
 from views.placeholder_page import PlaceholderPage
@@ -36,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
 _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
-    "hospitalization": ("Hospitalización", 15),
     "inventory": ("Inventario", 19),
     "sales": ("Ventas", 21),
     "settings": ("Configuración", 23),
@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
             self._add_page("consultations", ConsultationsPage())
         if "vaccines" in allowed:
             self._add_page("vaccines", VaccinesPage())
+        if "hospitalization" in allowed:
+            self._add_page("hospitalization", HospitalizationPage())
         if "users" in allowed:
             self._add_page("users", UsersPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():
