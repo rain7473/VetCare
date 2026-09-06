@@ -29,6 +29,7 @@ def _fake_user():
 
 def run() -> int:
     from main import create_app
+    from services import permission_service, session
     from views.login.login_window import LoginWindow
     from views.main_window import MainWindow
     from views.startup.setup_window import SetupWindow
@@ -37,7 +38,23 @@ def run() -> int:
     app = create_app([])
     setup = SetupWindow()
     login = LoginWindow()
-    main_window = MainWindow(_fake_user())
+
+    # Sesión simulada con todos los permisos (como un ADMIN).
+    all_codes = frozenset(
+        code
+        for codes in permission_service.MODULE_PERMISSIONS.values()
+        for code in codes
+    )
+    fake = _fake_user()
+    session.set_current_user(fake, all_codes)
+    main_window = MainWindow(fake)
+
+    # Shell con permisos limitados (como SALES).
+    session.set_current_user(
+        fake, frozenset({"SALES_READ", "SALES_CREATE", "INVENTORY_READ"})
+    )
+    sales_window = MainWindow(fake)
+    session.set_current_user(fake, all_codes)
 
     # Navegación: cambiar a un módulo debe cambiar la página visible.
     index_before = main_window.stack.currentIndex()
@@ -61,8 +78,9 @@ def run() -> int:
             )
         ),
         "LoginWindow construida": "Iniciar sesión" in login.windowTitle(),
-        "Sidebar con 12 módulos": len(NAV_ITEMS) == 12,
-        "Stack con 12 páginas": main_window.stack.count() == 12,
+        "Sidebar define 12 módulos": len(NAV_ITEMS) == 12,
+        "Stack ADMIN con 12 páginas": main_window.stack.count() == 12,
+        "Shell SALES con 3 páginas": sales_window.stack.count() == 3,
         "Navegación cambia de página": index_before != index_after,
         "Topbar muestra al usuario": (
             main_window.topbar._user.full_name == "Usuaria Demo"
@@ -71,6 +89,9 @@ def run() -> int:
             len(main_window.stack.widget(0).cards) == 4
         ),
     }
+    from services import session as _session
+
+    _session.clear()
 
     failures = [name for name, ok in checks.items() if not ok]
     for name, ok in checks.items():

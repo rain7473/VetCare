@@ -1,9 +1,17 @@
-"""Ventana principal de VetCare: sidebar + topbar + área de módulos."""
+"""Ventana principal de VetCare: sidebar + topbar + área de módulos.
+
+La sidebar y las páginas se construyen según los permisos del usuario
+conectado; además, la navegación vuelve a verificar el permiso en la
+lógica (defensa ante rutas internas).
+"""
+
+import logging
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
+    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -11,10 +19,14 @@ from PySide6.QtWidgets import (
 
 from config.constants import APP_NAME
 from models.user import User
+from services import permission_service
 from views.dashboard.dashboard_page import DashboardPage
 from views.placeholder_page import PlaceholderPage
+from views.users.users_page import UsersPage
 from widgets.sidebar import Sidebar
 from widgets.topbar import Topbar
+
+logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
 _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
@@ -27,8 +39,7 @@ _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
     "hospitalization": ("Hospitalización", 15),
     "inventory": ("Inventario", 19),
     "sales": ("Ventas", 21),
-    "users": ("Usuarios", 6),
-    "settings": ("Configuración", 6),
+    "settings": ("Configuración", 23),
 }
 
 
@@ -55,7 +66,9 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        self.sidebar = Sidebar()
+        allowed = permission_service.accessible_modules()
+
+        self.sidebar = Sidebar(visible_keys=allowed)
         self.sidebar.navigated.connect(self.navigate_to)
         root.addWidget(self.sidebar)
 
@@ -69,8 +82,11 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self._add_page("dashboard", DashboardPage(self._user))
+        if "users" in allowed:
+            self._add_page("users", UsersPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():
-            self._add_page(key, PlaceholderPage(title, objective))
+            if key in allowed:
+                self._add_page(key, PlaceholderPage(title, objective))
         right.addWidget(self.stack, stretch=1)
 
         root.addLayout(right, stretch=1)
@@ -79,7 +95,15 @@ class MainWindow(QMainWindow):
         self._page_index[key] = self.stack.addWidget(page)
 
     def navigate_to(self, key: str) -> None:
-        """Cambia el módulo visible y sincroniza la sidebar."""
+        """Cambia el módulo visible, verificando el permiso en la lógica."""
+        if not permission_service.can_access_module(key):
+            logger.warning("Acceso denegado al módulo '%s'", key)
+            QMessageBox.warning(
+                self,
+                APP_NAME,
+                "Permiso denegado: no tiene autorización para abrir este módulo.",
+            )
+            return
         if key in self._page_index:
             self.stack.setCurrentIndex(self._page_index[key])
             self.sidebar.set_active(key)

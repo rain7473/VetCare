@@ -29,14 +29,19 @@ NAV_ITEMS: list[tuple[str, str, str]] = [
 
 
 class Sidebar(QFrame):
-    """Menú lateral con estado activo por módulo."""
+    """Menú lateral con estado activo por módulo.
+
+    Solo muestra los módulos incluidos en ``visible_keys`` (determinados
+    por los permisos del usuario conectado).
+    """
 
     navigated = Signal(str)  # clave del módulo seleccionado
 
-    def __init__(self) -> None:
+    def __init__(self, visible_keys: set[str] | None = None) -> None:
         super().__init__()
         self.setObjectName("sidebar")
         self.setFixedWidth(232)
+        self._visible_keys = visible_keys
         self._buttons: dict[str, QPushButton] = {}
         self._build_ui()
 
@@ -58,6 +63,8 @@ class Sidebar(QFrame):
         group.setExclusive(True)
 
         for key, icon, label in NAV_ITEMS:
+            if self._visible_keys is not None and key not in self._visible_keys:
+                continue
             button = QPushButton(f"{icon}  {label}")
             button.setProperty("nav", True)
             button.setCheckable(True)
@@ -74,7 +81,8 @@ class Sidebar(QFrame):
         footer.setWordWrap(True)
         layout.addWidget(footer)
 
-        self._buttons["dashboard"].setChecked(True)
+        if "dashboard" in self._buttons:
+            self._buttons["dashboard"].setChecked(True)
 
     def set_active(self, key: str) -> None:
         if key in self._buttons:

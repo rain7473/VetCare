@@ -91,6 +91,15 @@ python -m tests.bootstrap_test
 
 # Pruebas de login/autenticación (Oracle con ROLLBACK, no persiste datos)
 python -m tests.auth_test
+
+# Pruebas de usuarios, roles y permisos (Oracle con ROLLBACK, no persiste datos)
+python -m tests.permissions_test
+```
+
+### Herramienta de inspección de esquema (solo lectura)
+
+```powershell
+python -m database.schema_inspector NOMBRE_TABLA [--rows N]
 ```
 
 ## Estado del proyecto

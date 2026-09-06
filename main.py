@@ -65,11 +65,14 @@ def _build_login_window() -> LoginWindow:
 
 def _build_main_window(user) -> QWidget:
     """Shell principal tras un login exitoso."""
-    from services import session
+    from services import permission_service, session
     from views.main_window import MainWindow
 
-    session.set_current_user(user)
-    logger.info("Sesión iniciada: %s", user.username)
+    permissions = permission_service.load_role_permissions(user.role_id)
+    session.set_current_user(user, permissions)
+    logger.info(
+        "Sesión iniciada: %s (%s permisos)", user.username, len(permissions)
+    )
 
     window = MainWindow(user)
     window.logout_requested.connect(lambda: _on_logout(window))

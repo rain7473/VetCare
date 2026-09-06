@@ -48,6 +48,15 @@ def validate_email(email: str) -> str:
     return value
 
 
+def validate_email_optional(email: str) -> str | None:
+    value = email.strip().lower()
+    if not value:
+        return None
+    if len(value) > 150 or not _EMAIL_RE.match(value):
+        raise ValidationError("El correo electrónico no es válido.")
+    return value
+
+
 def validate_phone_optional(phone: str) -> str | None:
     value = phone.strip()
     if not value:
