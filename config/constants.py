@@ -47,6 +47,13 @@ CONSCIOUSNESS_DISPLAY = {
     "UNCONSCIOUS": "Inconsciente",
 }
 
+# Estados de CONSULTATIONS.STATUS (check en Oracle) → texto de interfaz.
+CONSULTATION_STATUS_DISPLAY = {
+    "DRAFT": "Borrador",
+    "FINALIZED": "Finalizada",
+    "SEALED": "Sellada",
+}
+
 # Estados de APPOINTMENTS.STATUS (check en Oracle) → texto de interfaz.
 APPOINTMENT_STATUS_DISPLAY = {
     "SCHEDULED": "Programada",

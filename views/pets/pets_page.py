@@ -2,7 +2,7 @@
 
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPixmap, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
@@ -43,6 +43,9 @@ _STATUS_COLORS = {
 
 class PetsPage(QWidget):
     """Listado de mascotas con panel de perfil del paciente."""
+
+    open_consultation_requested = Signal(int)
+    open_history_requested = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -196,15 +199,32 @@ class PetsPage(QWidget):
         layout.addStretch()
 
         quick = QHBoxLayout()
-        for text, tooltip in [
-            ("Nueva consulta", "Disponible en el Objetivo 11"),
-            ("Ver historial", "Disponible en el Objetivo 11"),
-            ("Vacunar", "Disponible en el Objetivo 14"),
-        ]:
-            button = QPushButton(text)
-            button.setEnabled(False)
-            button.setToolTip(tooltip)
-            quick.addWidget(button)
+        can_consult = permission_service.has_permission("CONSULTATIONS_WRITE")
+        can_history = permission_service.has_permission("CONSULTATIONS_READ")
+        self.new_consult_button = QPushButton("Nueva consulta")
+        self.new_consult_button.setEnabled(can_consult)
+        self.new_consult_button.setToolTip(
+            "Abrir una consulta clínica para esta mascota"
+            if can_consult
+            else "Sin permiso para registrar consultas"
+        )
+        self.new_consult_button.clicked.connect(self._on_new_consultation)
+        quick.addWidget(self.new_consult_button)
+
+        self.history_button = QPushButton("Ver historial")
+        self.history_button.setEnabled(can_history)
+        self.history_button.setToolTip(
+            "Ver el historial clínico de esta mascota"
+            if can_history
+            else "Sin permiso para consultar el historial"
+        )
+        self.history_button.clicked.connect(self._on_view_history)
+        quick.addWidget(self.history_button)
+
+        vaccine_button = QPushButton("Vacunar")
+        vaccine_button.setEnabled(False)
+        vaccine_button.setToolTip("Disponible en el Objetivo 14")
+        quick.addWidget(vaccine_button)
         layout.addLayout(quick)
 
         return scroll
@@ -341,6 +361,18 @@ class PetsPage(QWidget):
             )
             return None
         return owners, species
+
+    def _on_new_consultation(self) -> None:
+        if self._selected is None:
+            QMessageBox.information(self, "Mascotas", "Seleccione una mascota primero.")
+            return
+        self.open_consultation_requested.emit(self._selected.id)
+
+    def _on_view_history(self) -> None:
+        if self._selected is None:
+            QMessageBox.information(self, "Mascotas", "Seleccione una mascota primero.")
+            return
+        self.open_history_requested.emit(self._selected.name)
 
     def _on_new(self) -> None:
         catalogs = self._dialog_catalogs()

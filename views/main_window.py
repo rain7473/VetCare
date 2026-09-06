@@ -21,6 +21,7 @@ from config.constants import APP_NAME
 from models.user import User
 from services import permission_service
 from views.appointments.appointments_page import AppointmentsPage
+from views.consultations.consultations_page import ConsultationsPage
 from views.dashboard.dashboard_page import DashboardPage
 from views.owners.owners_page import OwnersPage
 from views.pets.pets_page import PetsPage
@@ -34,7 +35,6 @@ logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
 _PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
-    "consultations": ("Consultas", 11),
     "vaccines": ("Vacunas", 14),
     "hospitalization": ("Hospitalización", 15),
     "inventory": ("Inventario", 19),
@@ -85,11 +85,16 @@ class MainWindow(QMainWindow):
         if "owners" in allowed:
             self._add_page("owners", OwnersPage())
         if "pets" in allowed:
-            self._add_page("pets", PetsPage())
+            pets_page = PetsPage()
+            pets_page.open_consultation_requested.connect(self._open_consultation_for_pet)
+            pets_page.open_history_requested.connect(self._open_consultation_history)
+            self._add_page("pets", pets_page)
         if "appointments" in allowed:
             self._add_page("appointments", AppointmentsPage())
         if "triage" in allowed:
             self._add_page("triage", TriagePage())
+        if "consultations" in allowed:
+            self._add_page("consultations", ConsultationsPage())
         if "users" in allowed:
             self._add_page("users", UsersPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():
@@ -115,3 +120,23 @@ class MainWindow(QMainWindow):
         if key in self._page_index:
             self.stack.setCurrentIndex(self._page_index[key])
             self.sidebar.set_active(key)
+
+    def _open_consultation_for_pet(self, pet_id: int) -> None:
+        if not permission_service.can_access_module("consultations"):
+            QMessageBox.warning(
+                self, APP_NAME, "Permiso denegado: no puede abrir consultas."
+            )
+            return
+        self.navigate_to("consultations")
+        page = self.stack.widget(self._page_index["consultations"])
+        page.start_for_pet(pet_id)
+
+    def _open_consultation_history(self, pet_name: str) -> None:
+        if not permission_service.can_access_module("consultations"):
+            QMessageBox.warning(
+                self, APP_NAME, "Permiso denegado: no puede abrir el historial."
+            )
+            return
+        self.navigate_to("consultations")
+        page = self.stack.widget(self._page_index["consultations"])
+        page.filter_by_pet_name(pet_name)

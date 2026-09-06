@@ -85,6 +85,7 @@ def run() -> int:
         "Página Mascotas integrada": "pets" in main_window._page_index,
         "Página Citas integrada": "appointments" in main_window._page_index,
         "Página Triaje integrada": "triage" in main_window._page_index,
+        "Página Consultas integrada": "consultations" in main_window._page_index,
         "Navegación cambia de página": index_before != index_after,
         "Topbar muestra al usuario": (
             main_window.topbar._user.full_name == "Usuaria Demo"

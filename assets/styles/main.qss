@@ -303,6 +303,19 @@ QLabel#pageTitle {
     background: transparent;
 }
 
+QLabel#cardTitle {
+    color: #006978;
+    font-size: 14px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#statusBadge {
+    font-size: 13px;
+    font-weight: 700;
+    background: transparent;
+}
+
 QLabel#statTitle {
     color: #6B8194;
     font-size: 12px;
