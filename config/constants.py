@@ -54,6 +54,14 @@ CONSULTATION_STATUS_DISPLAY = {
     "SEALED": "Sellada",
 }
 
+# Estados de SURGICAL_PROCEDURES.STATUS (check en Oracle) → texto de interfaz.
+SURGERY_STATUS_DISPLAY = {
+    "PLANNED": "Planificada",
+    "IN_PROGRESS": "En curso",
+    "COMPLETED": "Completada",
+    "CANCELLED": "Cancelada",
+}
+
 # Estados de APPOINTMENTS.STATUS (check en Oracle) → texto de interfaz.
 APPOINTMENT_STATUS_DISPLAY = {
     "SCHEDULED": "Programada",

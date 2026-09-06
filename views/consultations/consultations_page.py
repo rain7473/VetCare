@@ -23,16 +23,27 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from config.constants import CONSULTATION_STATUS_DISPLAY, Colors
+from config.constants import (
+    CONSULTATION_STATUS_DISPLAY,
+    SURGERY_STATUS_DISPLAY,
+    Colors,
+)
 from database.connection import DatabaseConnectionError
 from models.consultation import Consultation, ConsultationVital, Diagnosis
 from models.prescription import Prescription
-from services import consultation_service, permission_service, pharmacology_service
+from models.surgery import Surgery
+from services import (
+    consultation_service,
+    permission_service,
+    pharmacology_service,
+    surgery_service,
+)
 from services.consultation_service import ConsultationFormData, VitalsFormData
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
 from views.consultations.calculator_dialog import CalculatorDialog
 from views.consultations.consultation_dialog import ConsultationDialog
+from views.surgeries.surgery_dialog import SurgeryDialog
 
 _COLUMNS = ["Fecha", "Paciente", "Propietario", "Veterinario", "Motivo", "Estado"]
 
@@ -54,6 +65,7 @@ class ConsultationsPage(QWidget):
         self._loaded = False
         self._can_write = permission_service.has_permission("CONSULTATIONS_WRITE")
         self._can_seal = permission_service.has_permission("CONSULTATIONS_SEAL")
+        self._can_surgery = permission_service.has_permission("SURGERY_MANAGE")
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -158,6 +170,7 @@ class ConsultationsPage(QWidget):
         layout.addWidget(self._build_vitals_card())
         layout.addWidget(self._build_diagnoses_card())
         layout.addWidget(self._build_prescriptions_card())
+        layout.addWidget(self._build_surgery_card())
 
         actions = QHBoxLayout()
         self.save_button = QPushButton("Guardar borrador")
@@ -272,6 +285,51 @@ class ConsultationsPage(QWidget):
         self.calculator_button.setProperty("variant", "secondary")
         self.calculator_button.clicked.connect(self._on_calculator)
         layout.addWidget(self.calculator_button, alignment=Qt.AlignLeft)
+        return card
+
+    def _build_surgery_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        title = QLabel("Control quirúrgico")
+        title.setObjectName("cardTitle")
+        layout.addWidget(title)
+
+        self.surgery_list = QLabel("Sin procedimientos registrados.")
+        self.surgery_list.setWordWrap(True)
+        self.surgery_list.setObjectName("versionLabel")
+        layout.addWidget(self.surgery_list)
+
+        self.surgery_combo = QComboBox()
+        layout.addWidget(self.surgery_combo)
+
+        row = QHBoxLayout()
+        self.new_surgery_button = QPushButton("Registrar cirugía")
+        self.new_surgery_button.setProperty("variant", "secondary")
+        self.new_surgery_button.clicked.connect(self._on_new_surgery)
+        self.start_surgery_button = QPushButton("Iniciar")
+        self.start_surgery_button.setProperty("variant", "secondary")
+        self.start_surgery_button.clicked.connect(
+            lambda: self._on_surgery_status("IN_PROGRESS")
+        )
+        self.complete_surgery_button = QPushButton("Completar")
+        self.complete_surgery_button.setProperty("variant", "secondary")
+        self.complete_surgery_button.clicked.connect(
+            lambda: self._on_surgery_status("COMPLETED")
+        )
+        self.cancel_surgery_button = QPushButton("Cancelar")
+        self.cancel_surgery_button.setProperty("variant", "secondary")
+        self.cancel_surgery_button.clicked.connect(
+            lambda: self._on_surgery_status("CANCELLED")
+        )
+        for button in (
+            self.new_surgery_button,
+            self.start_surgery_button,
+            self.complete_surgery_button,
+            self.cancel_surgery_button,
+        ):
+            row.addWidget(button)
+        layout.addLayout(row)
         return card
 
     @staticmethod
@@ -393,6 +451,7 @@ class ConsultationsPage(QWidget):
         except (PermissionDeniedError, DatabaseConnectionError):
             prescriptions = []
         self.prescriptions_list.setText(self._format_prescriptions(prescriptions))
+        self._load_surgeries(consultation)
         editable = consultation.status == "DRAFT" and self._can_write
         self._set_workspace_enabled(True, editable=editable)
         self.seal_button.setEnabled(consultation.status == "FINALIZED" and self._can_seal)
@@ -443,6 +502,14 @@ class ConsultationsPage(QWidget):
         for widget in widgets:
             widget.setEnabled(has_selection and editable)
         self.calculator_button.setEnabled(has_selection and self._can_write)
+        self.surgery_combo.setEnabled(has_selection and self._can_surgery)
+        for button in (
+            self.new_surgery_button,
+            self.start_surgery_button,
+            self.complete_surgery_button,
+            self.cancel_surgery_button,
+        ):
+            button.setEnabled(has_selection and self._can_surgery)
         self.seal_button.setEnabled(False)
         self.print_button.setEnabled(has_selection)
 
@@ -588,6 +655,60 @@ class ConsultationsPage(QWidget):
         self.primary_check.setChecked(False)
         self.refresh()
 
+    def _load_surgeries(self, consultation: Consultation) -> None:
+        self.surgery_combo.clear()
+        if not self._can_surgery:
+            self.surgery_list.setText("Sin permiso para el control quirúrgico.")
+            return
+        try:
+            surgeries = surgery_service.list_surgeries(consultation.id)
+        except (PermissionDeniedError, DatabaseConnectionError):
+            surgeries = []
+        self.surgery_list.setText(self._format_surgeries(surgeries))
+        for item in surgeries:
+            label = SURGERY_STATUS_DISPLAY.get(item.status, item.status)
+            self.surgery_combo.addItem(f"{item.procedure_name} · {label}", item.id)
+
+    def _selected_surgery_id(self) -> int | None:
+        return self.surgery_combo.currentData()
+
+    def _on_new_surgery(self) -> None:
+        consultation = self._selected()
+        if consultation is None:
+            return
+        try:
+            vets = consultation_service.list_veterinarians()
+            medications = pharmacology_service.list_medications()
+        except (PermissionDeniedError, DatabaseConnectionError) as exc:
+            QMessageBox.warning(self, "Cirugía", str(exc))
+            return
+        if not vets:
+            QMessageBox.information(
+                self, "Cirugía", "No hay veterinarios o administradores activos."
+            )
+            return
+        if SurgeryDialog(consultation, vets, medications, parent=self).exec():
+            self.refresh()
+
+    def _on_surgery_status(self, new_status: str) -> None:
+        surgery_id = self._selected_surgery_id()
+        if surgery_id is None:
+            QMessageBox.information(
+                self, "Cirugía", "Seleccione un procedimiento primero."
+            )
+            return
+        label = SURGERY_STATUS_DISPLAY.get(new_status, new_status)
+        if QMessageBox.question(
+            self, "Cirugía", f"¿Marcar el procedimiento como {label}?"
+        ) != QMessageBox.Yes:
+            return
+        try:
+            surgery_service.change_status(surgery_id, new_status)
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
+            QMessageBox.warning(self, "Cirugía", str(exc))
+            return
+        self.refresh()
+
     def _on_calculator(self) -> None:
         consultation = self._selected()
         if consultation is None:
@@ -663,6 +784,23 @@ class ConsultationsPage(QWidget):
             mark = "Principal · " if diagnosis.is_primary else ""
             code = f"{diagnosis.diagnostic_code} — " if diagnosis.diagnostic_code else ""
             lines.append(f"{mark}{code}{diagnosis.description}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_surgeries(surgeries: list[Surgery]) -> str:
+        if not surgeries:
+            return "Sin procedimientos registrados."
+        lines = []
+        for item in surgeries:
+            status = SURGERY_STATUS_DISPLAY.get(item.status, item.status)
+            when = (
+                item.scheduled_at.strftime("%d/%m %H:%M")
+                if item.scheduled_at
+                else "—"
+            )
+            lines.append(
+                f"{item.procedure_name} · {status} · {when} · {item.veterinarian_name}"
+            )
         return "\n".join(lines)
 
     @staticmethod
