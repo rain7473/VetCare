@@ -20,16 +20,18 @@ from services import owner_service
 from services.owner_service import OwnerFormData
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
+from widgets.managed_dialog import ManagedDialog
 
 logger = logging.getLogger(__name__)
 
 
-class OwnerDialog(QDialog):
+class OwnerDialog(ManagedDialog):
     """Formulario modal para crear o editar un propietario."""
 
     def __init__(self, owner: Owner | None = None, parent=None) -> None:
         super().__init__(parent)
         self._owner = owner
+        self.created_id: int | None = None
         self.setWindowTitle("Editar propietario" if owner else "Nuevo propietario")
         self.setMinimumWidth(500)
         self._build_ui()
@@ -129,7 +131,7 @@ class OwnerDialog(QDialog):
         )
         try:
             if self._owner is None:
-                owner_service.create_owner(data)
+                self.created_id = owner_service.create_owner(data)
             else:
                 owner_service.update_owner(self._owner.id, data)
         except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:

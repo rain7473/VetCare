@@ -2,7 +2,7 @@
 
 Carga las variables de entorno desde ``.env`` (nunca credenciales en código)
 y expone rutas base del proyecto. La conexión Oracle que consume estas
-variables se implementa en ``database/connection.py`` (Objetivo 2).
+variables vive en ``database/connection.py``.
 """
 
 import os

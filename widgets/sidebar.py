@@ -4,27 +4,30 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QVBoxLayout,
 )
 
 from config.constants import APP_FOOTER_MOTTO, APP_NAME, APP_TAGLINE
+from utils.icons import icon_label, set_button_icon
 
 # (clave, ícono, etiqueta)
 NAV_ITEMS: list[tuple[str, str, str]] = [
-    ("dashboard", "🏠", "Dashboard"),
-    ("owners", "👤", "Propietarios"),
-    ("pets", "🐾", "Mascotas"),
-    ("appointments", "📅", "Citas"),
-    ("triage", "🚑", "Triaje"),
-    ("consultations", "🩺", "Consultas"),
-    ("vaccines", "💉", "Vacunas"),
-    ("hospitalization", "🛏", "Hospitalización"),
-    ("inventory", "📦", "Inventario"),
-    ("sales", "🛒", "Ventas"),
-    ("users", "👥", "Usuarios"),
-    ("settings", "⚙", "Configuración"),
+    ("dashboard", "dashboard", "Dashboard"),
+    ("owners", "owners", "Propietarios"),
+    ("pets", "pets", "Mascotas"),
+    ("appointments", "appointments", "Citas"),
+    ("triage", "triage", "Triaje"),
+    ("consultations", "consultations", "Consultas"),
+    ("vaccines", "vaccines", "Vacunas"),
+    ("hospitalization", "hospitalization", "Hospitalización"),
+    ("inventory", "inventory", "Inventario"),
+    ("sales", "sales", "Ventas"),
+    ("users", "users", "Usuarios"),
+    ("audit", "audit", "Auditoría"),
+    ("settings", "settings", "Configuración"),
 ]
 
 
@@ -50,9 +53,13 @@ class Sidebar(QFrame):
         layout.setContentsMargins(14, 20, 14, 16)
         layout.setSpacing(2)
 
-        title = QLabel(f"♥ {APP_NAME}")
+        brand = QHBoxLayout()
+        brand.setSpacing(7)
+        brand.addWidget(icon_label("brand", 18, "#FFFFFF"))
+        title = QLabel(APP_NAME)
         title.setObjectName("sidebarTitle")
-        layout.addWidget(title)
+        brand.addWidget(title, 1)
+        layout.addLayout(brand)
 
         subtitle = QLabel(APP_TAGLINE)
         subtitle.setObjectName("sidebarSubtitle")
@@ -65,7 +72,8 @@ class Sidebar(QFrame):
         for key, icon, label in NAV_ITEMS:
             if self._visible_keys is not None and key not in self._visible_keys:
                 continue
-            button = QPushButton(f"{icon}  {label}")
+            button = QPushButton(label)
+            set_button_icon(button, icon, color="#C7EDF0", active="#FFFFFF")
             button.setProperty("nav", True)
             button.setCheckable(True)
             button.setCursor(Qt.PointingHandCursor)

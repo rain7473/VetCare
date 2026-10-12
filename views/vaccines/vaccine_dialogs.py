@@ -18,17 +18,21 @@ from PySide6.QtWidgets import (
 from database.connection import DatabaseConnectionError
 from models.pet import Pet
 from models.vaccine import Vaccine
-from services import vaccine_service
+from services import permission_service, vaccine_service
 from services.permission_service import PermissionDeniedError
 from services.vaccine_service import VaccinationFormData, VaccineCatalogData
 from utils.validators import ValidationError
+from views.entity_creation import create_pet_nested
+from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
+from widgets.managed_dialog import ManagedDialog
 
 
-class CatalogDialog(QDialog):
+class CatalogDialog(ManagedDialog):
     """Alta de una vacuna en el catálogo."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.created_id: int | None = None
         self.setWindowTitle("Nueva vacuna del catálogo")
         self.setMinimumWidth(460)
         layout = QVBoxLayout(self)
@@ -60,7 +64,7 @@ class CatalogDialog(QDialog):
 
     def _on_save(self) -> None:
         try:
-            vaccine_service.add_to_catalog(
+            self.created_id = vaccine_service.add_to_catalog(
                 VaccineCatalogData(
                     name=self.name_input.text(),
                     manufacturer=self.manufacturer_input.text(),
@@ -74,7 +78,7 @@ class CatalogDialog(QDialog):
         self.accept()
 
 
-class ApplyDialog(QDialog):
+class ApplyDialog(ManagedDialog):
     """Registro de una aplicación de vacuna."""
 
     def __init__(
@@ -85,29 +89,37 @@ class ApplyDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self._pets = pets
+        self._vaccines = vaccines
         self.setWindowTitle("Aplicar vacuna")
         self.setMinimumWidth(500)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 24)
         form = QFormLayout()
 
-        self.pet_combo = QComboBox()
-        selected = 0
-        for index, pet in enumerate(pets):
-            self.pet_combo.addItem(f"{pet.name} ({pet.owner_name})", pet.id)
-            if pet.id == preferred_pet_id:
-                selected = index
-        if pets:
-            self.pet_combo.setCurrentIndex(selected)
-        form.addRow("Mascota", self.pet_combo)
+        self.pet_selector = DynamicEntitySelector(
+            placeholder="Buscar mascota, propietario o microchip…",
+            add_tooltip="Crear mascota",
+        )
+        self.pet_selector.set_items(self._pet_items(), selected_id=preferred_pet_id)
+        self.pet_selector.set_add_enabled(
+            permission_service.has_permission("PETS_WRITE"),
+            "Crear mascota" if permission_service.has_permission("PETS_WRITE")
+            else "Sin permiso para crear mascotas",
+        )
+        self.pet_selector.add_requested.connect(self._create_pet)
+        form.addRow("Mascota", self.pet_selector)
 
-        self.vaccine_combo = QComboBox()
-        for vaccine in vaccines:
-            label = vaccine.name
-            if vaccine.manufacturer:
-                label += f" · {vaccine.manufacturer}"
-            self.vaccine_combo.addItem(label, vaccine.id)
-        form.addRow("Vacuna", self.vaccine_combo)
+        self.vaccine_selector = DynamicEntitySelector(
+            placeholder="Buscar vacuna o fabricante…",
+            add_tooltip="Agregar vacuna al catálogo",
+        )
+        self.vaccine_selector.set_items(self._vaccine_items())
+        self.vaccine_selector.set_add_enabled(
+            permission_service.has_permission("VACCINES_MANAGE")
+        )
+        self.vaccine_selector.add_requested.connect(self._create_vaccine)
+        form.addRow("Vacuna", self.vaccine_selector)
 
         self.applied_input = QDateTimeEdit(QDateTime.currentDateTime())
         self.applied_input.setCalendarPopup(True)
@@ -159,8 +171,8 @@ class ApplyDialog(QDialog):
         try:
             vaccine_service.apply_vaccination(
                 VaccinationFormData(
-                    pet_id=self.pet_combo.currentData(),
-                    vaccine_id=self.vaccine_combo.currentData(),
+                    pet_id=self.pet_selector.current_id(),
+                    vaccine_id=self.vaccine_selector.current_id(),
                     consultation_id=None,
                     applied_at=self.applied_input.dateTime().toPython(),
                     lot_number=self.lot_input.text(),
@@ -174,3 +186,44 @@ class ApplyDialog(QDialog):
             self.error_label.setVisible(True)
             return
         self.accept()
+
+    def _pet_items(self) -> list[SelectorItem]:
+        return [
+            SelectorItem(
+                p.id,
+                f"{p.name} ({p.owner_name})",
+                " ".join(filter(None, [p.microchip_number, p.owner_name])),
+            )
+            for p in self._pets
+        ]
+
+    def _vaccine_items(self) -> list[SelectorItem]:
+        return [
+            SelectorItem(
+                v.id,
+                f"{v.name}{f' · {v.manufacturer}' if v.manufacturer else ''}",
+                v.manufacturer or "",
+            )
+            for v in self._vaccines
+        ]
+
+    def _create_pet(self) -> None:
+        try:
+            pet = create_pet_nested(self)
+        except (PermissionDeniedError, DatabaseConnectionError) as exc:
+            self.error_label.setText(str(exc))
+            self.error_label.setVisible(True)
+            return
+        if pet is None:
+            return
+        self._pets.append(pet)
+        self.pet_selector.set_items(self._pet_items(), selected_id=pet.id)
+
+    def _create_vaccine(self) -> None:
+        dialog = CatalogDialog(parent=self)
+        if not dialog.exec() or dialog.created_id is None:
+            return
+        self._vaccines = vaccine_service.list_catalog()
+        self.vaccine_selector.set_items(
+            self._vaccine_items(), selected_id=dialog.created_id
+        )

@@ -2,12 +2,15 @@
 
 import logging
 
+import oracledb
+
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPixmap, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
-    QFormLayout,
-    QFrame,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -15,20 +18,20 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
-    QScrollArea,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
-from config.constants import PET_SEX_DISPLAY, PET_STATUS_DISPLAY, Colors
+from config.constants import PET_STATUS_DISPLAY, Colors
 from database.connection import DatabaseConnectionError
 from models.pet import Pet
-from services import permission_service, pet_service
+from services import permission_service, pet_profile_service, pet_service
 from services.permission_service import PermissionDeniedError
-from utils.images import resolve_photo
 from utils.validators import ValidationError
+from views.pets.digital_card_dialog import DigitalCardDialog
 from views.pets.pet_dialog import PetDialog
+from views.pets.pet_profile_panel import PetProfilePanel
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,7 @@ class PetsPage(QWidget):
     """Listado de mascotas con panel de perfil del paciente."""
 
     open_consultation_requested = Signal(int)
-    open_history_requested = Signal(str)
+    open_history_requested = Signal(int)
     open_vaccination_requested = Signal(int)
 
     def __init__(self) -> None:
@@ -88,10 +91,11 @@ class PetsPage(QWidget):
         self.status_filter.currentIndexChanged.connect(self._apply_filters)
         header.addWidget(self.status_filter)
 
-        self.new_button = QPushButton("＋ Nueva mascota")
+        self.new_button = QPushButton("Nueva mascota", self)
+        set_button_icon(self.new_button, "add")
         self.new_button.clicked.connect(self._on_new)
-        self.new_button.setVisible(self._can_write)
         header.addWidget(self.new_button)
+        self.new_button.setVisible(self._can_write)
 
         layout.addLayout(header)
 
@@ -118,15 +122,16 @@ class PetsPage(QWidget):
 
         actions = QHBoxLayout()
         actions.addStretch()
-        self.edit_button = QPushButton("Editar")
+        self.edit_button = QPushButton("Editar", self)
+        set_button_icon(self.edit_button, "edit", color="#008FA3")
         self.edit_button.setProperty("variant", "secondary")
         self.edit_button.clicked.connect(self._on_edit)
-        self.edit_button.setVisible(self._can_write)
         actions.addWidget(self.edit_button)
+        self.edit_button.setVisible(self._can_write)
 
-        self.status_button = QPushButton("Cambiar estado")
+        self.status_button = QPushButton("Cambiar estado", self)
+        set_button_icon(self.status_button, "inactive", color="#008FA3")
         self.status_button.setProperty("variant", "secondary")
-        self.status_button.setVisible(self._can_write)
         status_menu = QMenu(self.status_button)
         for code, label in PET_STATUS_DISPLAY.items():
             action = status_menu.addAction(label)
@@ -135,6 +140,7 @@ class PetsPage(QWidget):
             )
         self.status_button.setMenu(status_menu)
         actions.addWidget(self.status_button)
+        self.status_button.setVisible(self._can_write)
         left.addLayout(actions)
 
         body.addLayout(left, stretch=11)
@@ -144,97 +150,22 @@ class PetsPage(QWidget):
         layout.addLayout(body, stretch=1)
 
     def _build_profile_panel(self) -> QWidget:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        card = QFrame()
-        card.setProperty("card", True)
-        scroll.setWidget(card)
-
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(10)
-
-        top = QHBoxLayout()
-        self.photo_label = QLabel("🐾")
-        self.photo_label.setObjectName("photoPreview")
-        self.photo_label.setFixedSize(96, 96)
-        self.photo_label.setAlignment(Qt.AlignCenter)
-        top.addWidget(self.photo_label)
-
-        name_box = QVBoxLayout()
-        self.pet_name_label = QLabel("Seleccione una mascota")
-        self.pet_name_label.setObjectName("profileName")
-        name_box.addWidget(self.pet_name_label)
-        self.pet_breed_label = QLabel("")
-        self.pet_breed_label.setObjectName("screenSubtitle")
-        name_box.addWidget(self.pet_breed_label)
-        self.pet_status_label = QLabel("")
-        name_box.addWidget(self.pet_status_label)
-        name_box.addStretch()
-        top.addLayout(name_box)
-        top.addStretch()
-        layout.addLayout(top)
-
-        form = QFormLayout()
-        form.setVerticalSpacing(8)
-        self._detail_labels: dict[str, QLabel] = {}
-        for key, label in [
-            ("owner", "Propietario"),
-            ("sex_age", "Sexo / Edad"),
-            ("color", "Color"),
-            ("microchip", "Microchip"),
-            ("blood", "Tipo de sangre"),
-            ("allergies", "Alergias"),
-            ("chronic", "Cond. crónicas"),
-            ("features", "Características"),
-            ("last_consultation", "Última consulta"),
-            ("next_vaccine", "Próxima vacuna"),
-        ]:
-            value = QLabel("—")
-            value.setWordWrap(True)
-            self._detail_labels[key] = value
-            form.addRow(f"{label}:", value)
-        layout.addLayout(form)
-        layout.addStretch()
-
-        quick = QHBoxLayout()
         can_consult = permission_service.has_permission("CONSULTATIONS_WRITE")
         can_history = permission_service.has_permission("CONSULTATIONS_READ")
-        self.new_consult_button = QPushButton("Nueva consulta")
-        self.new_consult_button.setEnabled(can_consult)
-        self.new_consult_button.setToolTip(
-            "Abrir una consulta clínica para esta mascota"
-            if can_consult
-            else "Sin permiso para registrar consultas"
-        )
-        self.new_consult_button.clicked.connect(self._on_new_consultation)
-        quick.addWidget(self.new_consult_button)
-
-        self.history_button = QPushButton("Ver historial")
-        self.history_button.setEnabled(can_history)
-        self.history_button.setToolTip(
-            "Ver el historial clínico de esta mascota"
-            if can_history
-            else "Sin permiso para consultar el historial"
-        )
-        self.history_button.clicked.connect(self._on_view_history)
-        quick.addWidget(self.history_button)
-
         can_vaccine = permission_service.has_permission("VACCINES_MANAGE")
-        vaccine_button = QPushButton("Vacunar")
-        vaccine_button.setEnabled(can_vaccine)
-        vaccine_button.setToolTip(
-            "Registrar una vacuna para esta mascota"
-            if can_vaccine
-            else "Sin permiso para gestionar vacunas"
+        self.profile_panel = PetProfilePanel(
+            can_write=self._can_write,
+            can_consult=can_consult,
+            can_history=can_history,
+            can_vaccinate=can_vaccine,
         )
-        vaccine_button.clicked.connect(self._on_vaccinate)
-        quick.addWidget(vaccine_button)
-        layout.addLayout(quick)
-
-        return scroll
+        self.profile_panel.edit_requested.connect(self._on_edit)
+        self.profile_panel.photo_requested.connect(self._on_pick_photo)
+        self.profile_panel.consultation_requested.connect(self._on_new_consultation)
+        self.profile_panel.history_requested.connect(self._on_view_history)
+        self.profile_panel.vaccination_requested.connect(self._on_vaccinate)
+        self.profile_panel.card_requested.connect(self._on_digital_card)
+        return self.profile_panel
 
     def showEvent(self, event) -> None:  # noqa: N802 (API Qt)
         super().showEvent(event)
@@ -265,11 +196,14 @@ class PetsPage(QWidget):
         self._apply_filters()
 
     def _apply_filters(self) -> None:
+        selected_id = self._selected.id if self._selected else None
         text = self.search_input.text().strip().lower()
         species_id = self.species_filter.currentData()
         status = self.status_filter.currentData()
 
+        self.table.selectionModel().blockSignals(True)
         self.model.setRowCount(0)
+        selected_row = None
         for pet in self._pets:
             if species_id is not None and pet.species_id != species_id:
                 continue
@@ -293,8 +227,13 @@ class PetsPage(QWidget):
             for item in row:
                 item.setEditable(False)
             self.model.appendRow(row)
+            if pet.id == selected_id:
+                selected_row = self.model.rowCount() - 1
 
-        self._show_pet(None)
+        if selected_row is not None:
+            self.table.selectRow(selected_row)
+        self.table.selectionModel().blockSignals(False)
+        self._on_selection()
 
     # ------------------------------------------------------------ Selección
 
@@ -309,47 +248,14 @@ class PetsPage(QWidget):
 
     def _show_pet(self, pet: Pet | None) -> None:
         self._selected = pet
-        if pet is None:
-            self.pet_name_label.setText("Seleccione una mascota")
-            self.pet_breed_label.setText("")
-            self.pet_status_label.setText("")
-            self.photo_label.setText("🐾")
-            self.photo_label.setPixmap(QPixmap())
-            for label in self._detail_labels.values():
-                label.setText("—")
-            return
-
-        self.pet_name_label.setText(pet.name)
-        breed = pet.breed_name or "Sin raza definida"
-        self.pet_breed_label.setText(f"{pet.species_name} · {breed}")
-        estado = PET_STATUS_DISPLAY.get(pet.status, pet.status)
-        color = _STATUS_COLORS.get(pet.status, Colors.TEXT_DARK)
-        self.pet_status_label.setText(estado)
-        self.pet_status_label.setStyleSheet(f"color: {color}; font-weight: 700;")
-
-        photo = resolve_photo(pet.photo_url)
-        if photo:
-            pixmap = QPixmap(str(photo))
-            self.photo_label.setPixmap(
-                pixmap.scaled(96, 96, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            )
-        else:
-            self.photo_label.setPixmap(QPixmap())
-            self.photo_label.setText("🐾")
-
-        sex = PET_SEX_DISPLAY.get(pet.sex, pet.sex)
-        self._detail_labels["owner"].setText(pet.owner_name or "—")
-        self._detail_labels["sex_age"].setText(f"{sex} · {pet.age_text()}")
-        self._detail_labels["color"].setText(pet.color or "—")
-        self._detail_labels["microchip"].setText(pet.microchip_number or "—")
-        self._detail_labels["blood"].setText(pet.blood_type or "—")
-        self._detail_labels["allergies"].setText(pet.allergies or "Sin alergias registradas")
-        self._detail_labels["chronic"].setText(
-            pet.chronic_conditions or "Sin condiciones registradas"
-        )
-        self._detail_labels["features"].setText(pet.distinctive_features or "—")
-        self._detail_labels["last_consultation"].setText("— (Objetivo 11)")
-        self._detail_labels["next_vaccine"].setText("— (Objetivo 14)")
+        data = None
+        if pet is not None:
+            try:
+                data = pet_profile_service.load_profile(pet.id)
+            except (PermissionDeniedError, DatabaseConnectionError, oracledb.Error):
+                logger.exception("No se pudo cargar el perfil clínico de la mascota %s", pet.id)
+                QMessageBox.warning(self, "Mascotas", "No se pudieron cargar los datos clínicos del perfil.")
+        self.profile_panel.set_pet(pet, data)
 
     # -------------------------------------------------------------- Acciones
 
@@ -369,6 +275,12 @@ class PetsPage(QWidget):
             return None
         return owners, species
 
+    def _on_digital_card(self) -> None:
+        if self._selected is None:
+            QMessageBox.information(self, "Mascotas", "Seleccione una mascota primero.")
+            return
+        DigitalCardDialog(self._selected.id, parent=self).exec()
+
     def _on_vaccinate(self) -> None:
         if self._selected is None:
             QMessageBox.information(self, "Mascotas", "Seleccione una mascota primero.")
@@ -385,7 +297,7 @@ class PetsPage(QWidget):
         if self._selected is None:
             QMessageBox.information(self, "Mascotas", "Seleccione una mascota primero.")
             return
-        self.open_history_requested.emit(self._selected.name)
+        self.open_history_requested.emit(self._selected.id)
 
     def _on_new(self) -> None:
         catalogs = self._dialog_catalogs()
@@ -407,6 +319,22 @@ class PetsPage(QWidget):
         dialog = PetDialog(owners, species, pet=self._selected, parent=self)
         if dialog.exec():
             self.refresh()
+
+    def _on_pick_photo(self) -> None:
+        if self._selected is None or not self._can_write:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Cambiar fotografía", "", "Imágenes (*.png *.jpg *.jpeg *.webp)"
+        )
+        if not path:
+            return
+        try:
+            pet_service.update_pet_photo(self._selected.id, path)
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError, oracledb.Error) as exc:
+            logger.exception("No se pudo cambiar la fotografía de la mascota")
+            QMessageBox.warning(self, "Mascotas", str(exc) if not isinstance(exc, oracledb.Error) else "No se pudo guardar la fotografía.")
+            return
+        self.refresh()
 
     def _on_change_status(self, status: str) -> None:
         if self._selected is None:

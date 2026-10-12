@@ -20,9 +20,11 @@ from services import pharmacology_service
 from services.permission_service import PermissionDeniedError
 from services.pharmacology_service import DoseCalculation, PrescriptionFormData
 from utils.validators import ValidationError
+from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
+from widgets.managed_dialog import ManagedDialog
 
 
-class CalculatorDialog(QDialog):
+class CalculatorDialog(ManagedDialog):
     """Calcula y, si la consulta está en borrador, guarda la prescripción."""
 
     def __init__(self, consultation: Consultation, parent=None) -> None:
@@ -51,13 +53,25 @@ class CalculatorDialog(QDialog):
         form = QFormLayout()
         form.setVerticalSpacing(10)
 
-        self.medication_combo = QComboBox()
-        self.medication_combo.currentIndexChanged.connect(self._reload_guidelines)
-        form.addRow("Medicamento", self.medication_combo)
+        self.medication_selector = DynamicEntitySelector(
+            placeholder="Buscar medicamento, principio o presentación…",
+            add_tooltip="Crear medicamento",
+        )
+        self.medication_selector.set_add_enabled(
+            False, "El catálogo farmacológico se administra desde configuración médica"
+        )
+        self.medication_selector.selection_changed.connect(self._reload_guidelines)
+        form.addRow("Medicamento", self.medication_selector)
 
-        self.guideline_combo = QComboBox()
-        self.guideline_combo.currentIndexChanged.connect(self._apply_guideline)
-        form.addRow("Guía", self.guideline_combo)
+        self.guideline_selector = DynamicEntitySelector(
+            placeholder="Buscar guía por especie o unidad…",
+            add_tooltip="Crear guía farmacológica",
+        )
+        self.guideline_selector.set_add_enabled(
+            False, "Las guías se administran desde configuración médica"
+        )
+        self.guideline_selector.selection_changed.connect(self._apply_guideline)
+        form.addRow("Guía", self.guideline_selector)
 
         self.weight_input = QDoubleSpinBox()
         self.weight_input.setRange(0.01, 200)
@@ -122,32 +136,41 @@ class CalculatorDialog(QDialog):
             return
         if last_weight:
             self.weight_input.setValue(last_weight)
-        self.medication_combo.clear()
         if not self._medications:
-            self.medication_combo.addItem("No hay medicamentos configurados", None)
+            self.medication_selector.set_items([])
             self._show_error(
                 "El catálogo de medicamentos está vacío. Configure guías en Oracle "
                 "antes de prescribir."
             )
             return
-        for medication in self._medications:
-            label = medication.name
-            if medication.presentation:
-                label += f" · {medication.presentation}"
-            self.medication_combo.addItem(label, medication.id)
+        self.medication_selector.set_items(
+            [
+                SelectorItem(
+                    medication.id,
+                    f"{medication.name}{f' · {medication.presentation}' if medication.presentation else ''}",
+                    " ".join(
+                        filter(
+                            None,
+                            [medication.active_ingredient, medication.concentration_unit],
+                        )
+                    ),
+                )
+                for medication in self._medications
+            ]
+        )
         self._reload_guidelines()
 
     def _current_medication(self) -> Medication | None:
-        medication_id = self.medication_combo.currentData()
+        medication_id = self.medication_selector.current_id()
         return next((m for m in self._medications if m.id == medication_id), None)
 
     def _current_guideline(self) -> MedicationGuideline | None:
-        guideline_id = self.guideline_combo.currentData()
+        guideline_id = self.guideline_selector.current_id()
         return next((g for g in self._guidelines if g.id == guideline_id), None)
 
-    def _reload_guidelines(self) -> None:
+    def _reload_guidelines(self, *_args) -> None:
         medication = self._current_medication()
-        self.guideline_combo.clear()
+        self.guideline_selector.set_items([])
         self._guidelines = []
         if medication is None:
             return
@@ -162,18 +185,22 @@ class CalculatorDialog(QDialog):
             self._show_error(str(exc))
             return
         if not self._guidelines:
-            self.guideline_combo.addItem("Sin guía configurada", None)
             self.range_label.setText("No hay guía para este medicamento/especie.")
             self._recalculate()
             return
-        for guideline in self._guidelines:
-            species = guideline.species_name or "Todas las especies"
-            self.guideline_combo.addItem(
-                f"{species} · {guideline.dose_unit}/kg", guideline.id
-            )
+        self.guideline_selector.set_items(
+            [
+                SelectorItem(
+                    guideline.id,
+                    f"{guideline.species_name or 'Todas las especies'} · {guideline.dose_unit}/kg",
+                    guideline.frequency_text or "",
+                )
+                for guideline in self._guidelines
+            ]
+        )
         self._apply_guideline()
 
-    def _apply_guideline(self) -> None:
+    def _apply_guideline(self, *_args) -> None:
         guideline = self._current_guideline()
         if guideline is None:
             self.range_label.setText("Sin guía seleccionada")
@@ -252,8 +279,8 @@ class CalculatorDialog(QDialog):
     def _on_save(self) -> None:
         data = PrescriptionFormData(
             consultation_id=self._consultation.id,
-            medication_id=self.medication_combo.currentData(),
-            guideline_id=self.guideline_combo.currentData(),
+            medication_id=self.medication_selector.current_id(),
+            guideline_id=self.guideline_selector.current_id(),
             weight_kg=self.weight_input.value(),
             dose_per_kg=self.dose_input.value(),
             duration_days=self.duration_input.value() or None,

@@ -53,6 +53,12 @@ def list_pets() -> list[Pet]:
         return pet_repository.list_pets(conn)
 
 
+def get_pet(pet_id: int) -> Pet | None:
+    permission_service.require_permission("PETS_READ")
+    with connection_scope() as conn:
+        return pet_repository.get_by_id(conn, pet_id)
+
+
 def list_species() -> list[tuple[int, str]]:
     permission_service.require_permission("PETS_READ")
     with connection_scope() as conn:
@@ -63,6 +69,17 @@ def list_breeds(species_id: int) -> list[tuple[int, str]]:
     permission_service.require_permission("PETS_READ")
     with connection_scope() as conn:
         return species_repository.list_breeds(conn, species_id)
+
+
+def create_breed(species_id: int, name: str) -> int:
+    """Crea o reutiliza una raza dentro de una especie."""
+    permission_service.require_permission("PETS_WRITE")
+    clean_name = validators.validate_required_text(name, "El nombre de la raza", 100)
+    with connection_scope(commit=True) as conn:
+        existing = species_repository.find_breed_by_name(conn, species_id, clean_name)
+        if existing is not None:
+            return existing
+        return species_repository.insert_breed(conn, species_id, clean_name)
 
 
 def list_active_owners() -> list[Owner]:
@@ -92,6 +109,16 @@ def set_pet_status(pet_id: int, status: str) -> None:
             raise ValidationError("La mascota no existe.")
         pet_repository.set_status(conn, pet_id, status)
         logger.info("Mascota %s → estado %s", pet_id, status)
+
+
+def update_pet_photo(pet_id: int, source_path: str) -> None:
+    """Cambia la foto desde el perfil con las mismas reglas que el formulario."""
+    permission_service.require_permission("PETS_WRITE")
+    with connection_scope(commit=True) as conn:
+        if pet_repository.get_by_id(conn, pet_id) is None:
+            raise ValidationError("La mascota no existe.")
+        photo_url = save_pet_photo(source_path, f"pet_{pet_id}")
+        pet_repository.set_photo(conn, pet_id, photo_url)
 
 
 # ------------------------------------------------------------------ interno

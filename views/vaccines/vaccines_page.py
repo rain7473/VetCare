@@ -2,6 +2,8 @@
 
 from datetime import date
 
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
@@ -62,12 +64,14 @@ class VaccinesPage(QWidget):
         self.search_input.textChanged.connect(self._apply_filters)
         header.addWidget(self.search_input)
 
-        catalog = QPushButton("＋ Catálogo")
+        catalog = QPushButton("Catálogo")
+        set_button_icon(catalog, "add", color="#008FA3")
         catalog.setProperty("variant", "secondary")
         catalog.clicked.connect(self._on_catalog)
         header.addWidget(catalog)
 
-        apply_btn = QPushButton("＋ Aplicar vacuna")
+        apply_btn = QPushButton("Aplicar vacuna")
+        set_button_icon(apply_btn, "add")
         apply_btn.clicked.connect(self._on_apply)
         header.addWidget(apply_btn)
         layout.addLayout(header)

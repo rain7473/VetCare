@@ -40,6 +40,12 @@ def list_owners() -> list[Owner]:
         return owner_repository.list_owners(conn)
 
 
+def get_owner(owner_id: int) -> Owner | None:
+    permission_service.require_permission("OWNERS_READ")
+    with connection_scope() as conn:
+        return owner_repository.get_by_id(conn, owner_id)
+
+
 def create_owner(data: OwnerFormData) -> int:
     permission_service.require_permission("OWNERS_WRITE")
     with connection_scope(commit=True) as conn:

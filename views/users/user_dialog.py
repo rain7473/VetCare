@@ -21,18 +21,22 @@ from services import user_service
 from services.permission_service import PermissionDeniedError
 from services.user_service import UserFormData
 from utils.validators import ValidationError
+from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
+from widgets.managed_dialog import ManagedDialog
 
 logger = logging.getLogger(__name__)
 
 
-class UserDialog(QDialog):
+class UserDialog(ManagedDialog):
     """Formulario modal para crear o editar un usuario."""
 
     def __init__(self, roles: list[tuple[int, str]], user: User | None = None,
-                 parent=None) -> None:
+                 parent=None, preferred_role: str | None = None) -> None:
         super().__init__(parent)
         self._roles = roles
         self._user = user
+        self._preferred_role = preferred_role
+        self.created_id: int | None = None
         is_edit = user is not None
         self.setWindowTitle("Editar usuario" if is_edit else "Nuevo usuario")
         self.setMinimumWidth(460)
@@ -67,10 +71,23 @@ class UserDialog(QDialog):
         self.phone_input.setPlaceholderText("Opcional")
         form.addRow("Teléfono", self.phone_input)
 
-        self.role_combo = QComboBox()
-        for role_id, name in self._roles:
-            self.role_combo.addItem(ROLE_DISPLAY_NAMES.get(name, name), role_id)
-        form.addRow("Rol", self.role_combo)
+        preferred_id = next(
+            (role_id for role_id, name in self._roles if name == self._preferred_role),
+            None,
+        )
+        self.role_selector = DynamicEntitySelector(
+            placeholder="Buscar rol…",
+            add_tooltip="Crear rol",
+        )
+        self.role_selector.set_items(
+            [
+                SelectorItem(role_id, ROLE_DISPLAY_NAMES.get(name, name), name)
+                for role_id, name in self._roles
+            ],
+            selected_id=preferred_id,
+        )
+        self.role_selector.set_add_enabled(False, "VetCare usa cuatro roles oficiales")
+        form.addRow("Rol", self.role_selector)
 
         self.active_check = QCheckBox("Usuario activo")
         self.active_check.setChecked(True)
@@ -119,9 +136,7 @@ class UserDialog(QDialog):
         self.email_input.setText(user.email or "")
         self.phone_input.setText(user.phone or "")
         self.active_check.setChecked(user.is_active)
-        index = self.role_combo.findData(user.role_id)
-        if index >= 0:
-            self.role_combo.setCurrentIndex(index)
+        self.role_selector.select_id(user.role_id)
 
     # -------------------------------------------------------------- Guardar
 
@@ -131,7 +146,7 @@ class UserDialog(QDialog):
             username=self.username_input.text(),
             email=self.email_input.text(),
             phone=self.phone_input.text(),
-            role_id=self.role_combo.currentData(),
+            role_id=self.role_selector.current_id(),
             is_active=self.active_check.isChecked(),
             password=self.password_input.text(),
             password_confirmation=self.confirmation_input.text(),
@@ -139,7 +154,7 @@ class UserDialog(QDialog):
 
         try:
             if self._user is None:
-                user_service.create_user(data)
+                self.created_id = user_service.create_user(data)
             else:
                 user_service.update_user(self._user.id, data)
                 if data.password or data.password_confirmation:

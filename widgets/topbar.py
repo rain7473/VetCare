@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from config.constants import ROLE_DISPLAY_NAMES
 from models.user import User
+from utils.icons import icon, set_button_icon
 
 
 class Topbar(QFrame):
@@ -35,8 +36,9 @@ class Topbar(QFrame):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("globalSearch")
         self.search_input.setPlaceholderText(
-            "🔎  Buscar propietario, mascota, cita o historial..."
+            "Buscar propietario, mascota, cita o historial..."
         )
+        self.search_input.addAction(icon("search"), QLineEdit.LeadingPosition)
         self.search_input.setFixedHeight(38)
         self.search_input.setMaximumWidth(520)
         self.search_input.setToolTip(
@@ -46,7 +48,9 @@ class Topbar(QFrame):
 
         layout.addStretch()
 
-        self.notifications_button = QPushButton("🔔")
+        self.notifications_button = QPushButton()
+        self.notifications_button.setAccessibleName("Notificaciones")
+        set_button_icon(self.notifications_button, "notifications", color="#008FA3")
         self.notifications_button.setObjectName("notifButton")
         self.notifications_button.setFixedSize(38, 38)
         self.notifications_button.setToolTip(
@@ -85,13 +89,16 @@ class Topbar(QFrame):
 
         layout.addLayout(text_box)
 
-        menu_button = QPushButton("▾")
+        menu_button = QPushButton()
+        menu_button.setAccessibleName("Menú del usuario")
+        set_button_icon(menu_button, "chevron_down", size=12, color="#6B8194")
         menu_button.setObjectName("userMenuButton")
         menu_button.setFixedSize(28, 28)
         menu_button.setCursor(Qt.PointingHandCursor)
 
         menu = QMenu(menu_button)
         logout_action = menu.addAction("Cerrar sesión")
+        logout_action.setIcon(icon("logout"))
         logout_action.triggered.connect(self.logout_requested.emit)
         menu_button.setMenu(menu)
         layout.addWidget(menu_button)

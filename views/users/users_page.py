@@ -2,6 +2,8 @@
 
 import logging
 
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
@@ -59,7 +61,8 @@ class UsersPage(QWidget):
         self.search_input.textChanged.connect(self._on_search)
         header.addWidget(self.search_input)
 
-        self.new_button = QPushButton("＋ Nuevo usuario")
+        self.new_button = QPushButton("Nuevo usuario")
+        set_button_icon(self.new_button, "add")
         self.new_button.clicked.connect(self._on_new)
         header.addWidget(self.new_button)
 
@@ -89,11 +92,13 @@ class UsersPage(QWidget):
         actions.addStretch()
 
         self.edit_button = QPushButton("Editar")
+        set_button_icon(self.edit_button, "edit", color="#008FA3")
         self.edit_button.setProperty("variant", "secondary")
         self.edit_button.clicked.connect(self._on_edit)
         actions.addWidget(self.edit_button)
 
         self.toggle_button = QPushButton("Activar / Desactivar")
+        set_button_icon(self.toggle_button, "inactive", color="#008FA3")
         self.toggle_button.setProperty("variant", "secondary")
         self.toggle_button.clicked.connect(self._on_toggle_active)
         actions.addWidget(self.toggle_button)

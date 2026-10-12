@@ -25,17 +25,20 @@ from config.constants import (
 )
 from database.connection import DatabaseConnectionError
 from models.pet import Pet
-from services import triage_service
+from services import permission_service, triage_service
 from services.permission_service import PermissionDeniedError
 from services.triage_service import TriageFormData, suggest_priority
 from utils.validators import ValidationError
+from views.entity_creation import create_pet_nested
+from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
+from widgets.managed_dialog import ManagedDialog
 
 logger = logging.getLogger(__name__)
 
 _PRIORITY_COLORS = {1: Colors.ERROR, 2: Colors.WARNING, 3: Colors.INFO, 4: Colors.SUCCESS}
 
 
-class TriageDialog(QDialog):
+class TriageDialog(ManagedDialog):
     """Formulario modal de triaje (registro inmutable)."""
 
     def __init__(self, pets: list[Pet], parent=None) -> None:
@@ -57,11 +60,19 @@ class TriageDialog(QDialog):
         form = QFormLayout()
         form.setVerticalSpacing(10)
 
-        self.pet_combo = QComboBox()
-        for pet in self._pets:
-            self.pet_combo.addItem(f"{pet.name} ({pet.owner_name})", pet.id)
-        self.pet_combo.currentIndexChanged.connect(self._reload_appointments)
-        form.addRow("Mascota", self.pet_combo)
+        self.pet_selector = DynamicEntitySelector(
+            placeholder="Buscar mascota, propietario o microchip…",
+            add_tooltip="Crear mascota",
+        )
+        self.pet_selector.set_items(self._pet_items())
+        self.pet_selector.set_add_enabled(
+            permission_service.has_permission("PETS_WRITE"),
+            "Crear mascota" if permission_service.has_permission("PETS_WRITE")
+            else "Sin permiso para crear mascotas",
+        )
+        self.pet_selector.add_requested.connect(self._create_pet)
+        self.pet_selector.selection_changed.connect(self._reload_appointments)
+        form.addRow("Mascota", self.pet_selector)
 
         self.appointment_combo = QComboBox()
         self.appointment_combo.addItem("Sin cita vinculada", None)
@@ -235,8 +246,8 @@ class TriageDialog(QDialog):
 
     # ------------------------------------------------------------- Guardar
 
-    def _reload_appointments(self) -> None:
-        pet_id = self.pet_combo.currentData()
+    def _reload_appointments(self, *_args) -> None:
+        pet_id = self.pet_selector.current_id()
         self.appointment_combo.clear()
         self.appointment_combo.addItem("Sin cita vinculada", None)
         if pet_id is None:
@@ -251,7 +262,7 @@ class TriageDialog(QDialog):
     def _on_save(self) -> None:
         signs = self._current_signs()
         data = TriageFormData(
-            pet_id=self.pet_combo.currentData(),
+            pet_id=self.pet_selector.current_id(),
             appointment_id=self.appointment_combo.currentData(),
             reason=self.reason_input.toPlainText(),
             heart_rate_bpm=None if self.hr_spin.value() == 0 else self.hr_spin.value(),
@@ -275,3 +286,26 @@ class TriageDialog(QDialog):
             self.error_label.setVisible(True)
             return
         self.accept()
+
+    def _pet_items(self) -> list[SelectorItem]:
+        return [
+            SelectorItem(
+                pet.id,
+                f"{pet.name} ({pet.owner_name})",
+                " ".join(filter(None, [pet.microchip_number, pet.owner_name])),
+            )
+            for pet in self._pets
+        ]
+
+    def _create_pet(self) -> None:
+        try:
+            pet = create_pet_nested(self)
+        except (PermissionDeniedError, DatabaseConnectionError) as exc:
+            self.error_label.setText(str(exc))
+            self.error_label.setVisible(True)
+            return
+        if pet is None:
+            return
+        self._pets.append(pet)
+        self.pet_selector.set_items(self._pet_items(), selected_id=pet.id)
+        self._reload_appointments()

@@ -2,6 +2,8 @@
 
 import logging
 
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
@@ -94,7 +96,8 @@ class AppointmentsPage(QWidget):
         self.search_input.textChanged.connect(self._apply_filters)
         header.addWidget(self.search_input)
 
-        self.new_button = QPushButton("＋ Nueva cita")
+        self.new_button = QPushButton("Nueva cita")
+        set_button_icon(self.new_button, "add")
         self.new_button.clicked.connect(self._on_new)
         header.addWidget(self.new_button)
 

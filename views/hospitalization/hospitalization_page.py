@@ -1,5 +1,7 @@
 """Página de hospitalización: ingresos activos, áreas y espacios."""
 
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
@@ -79,17 +81,20 @@ class HospitalizationPage(QWidget):
         self.all_check.toggled.connect(lambda _: self.refresh())
         header.addWidget(self.all_check)
 
-        area_btn = QPushButton("＋ Área")
+        area_btn = QPushButton("Área")
+        set_button_icon(area_btn, "add", color="#008FA3")
         area_btn.setProperty("variant", "secondary")
         area_btn.clicked.connect(self._on_area)
         header.addWidget(area_btn)
 
-        space_btn = QPushButton("＋ Espacio")
+        space_btn = QPushButton("Espacio")
+        set_button_icon(space_btn, "add", color="#008FA3")
         space_btn.setProperty("variant", "secondary")
         space_btn.clicked.connect(self._on_space)
         header.addWidget(space_btn)
 
-        admit_btn = QPushButton("＋ Nuevo ingreso")
+        admit_btn = QPushButton("Nuevo ingreso")
+        set_button_icon(admit_btn, "add")
         admit_btn.clicked.connect(self._on_admit)
         header.addWidget(admit_btn)
         layout.addLayout(header)

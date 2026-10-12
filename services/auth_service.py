@@ -10,7 +10,7 @@ import oracledb
 
 from database.connection import connection_scope
 from models.user import User
-from repositories import user_repository
+from repositories import audit_repository, user_repository
 from utils.security import verify_password
 
 logger = logging.getLogger(__name__)
@@ -58,5 +58,13 @@ def _authenticate(conn: oracledb.Connection, username: str, password: str) -> Us
         )
 
     user_repository.update_last_login(conn, user.id)
+    audit_repository.insert_event(
+        conn,
+        user_id=user.id,
+        entity_type="USER",
+        entity_id=user.id,
+        action="LOGIN",
+        new_data={"username": user.username, "role": user.role_name},
+    )
     logger.info("Login exitoso: %s (rol %s)", user.username, user.role_name)
     return user

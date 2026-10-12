@@ -136,3 +136,12 @@ def set_status(conn: oracledb.Connection, pet_id: int, status: str) -> None:
             "UPDATE pets SET status = :status WHERE id = :id",
             {"status": status, "id": pet_id},
         )
+
+
+def set_photo(conn: oracledb.Connection, pet_id: int, photo_url: str) -> None:
+    """Actualiza solo la fotografía, sin tocar el resto de la ficha."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE pets SET photo_url = :photo_url WHERE id = :id",
+            {"photo_url": photo_url, "id": pet_id},
+        )

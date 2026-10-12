@@ -1,5 +1,7 @@
 """Página de consultas: listado cronológico + ficha clínica amplia."""
 
+from utils.icons import icon_label, pixmap, set_button_icon
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel, QTextDocument
 from PySide6.QtWidgets import (
@@ -34,16 +36,19 @@ from models.prescription import Prescription
 from models.surgery import Surgery
 from services import (
     consultation_service,
+    integrity_service,
     permission_service,
     pharmacology_service,
     surgery_service,
 )
 from services.consultation_service import ConsultationFormData, VitalsFormData
+from services.integrity_service import AmendmentFormData
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
 from views.consultations.calculator_dialog import CalculatorDialog
 from views.consultations.consultation_dialog import ConsultationDialog
 from views.surgeries.surgery_dialog import SurgeryDialog
+from widgets.managed_dialog import ManagedDialog
 
 _COLUMNS = ["Fecha", "Paciente", "Propietario", "Veterinario", "Motivo", "Estado"]
 
@@ -62,6 +67,7 @@ class ConsultationsPage(QWidget):
         self.setObjectName("pageArea")
         self._items: list[Consultation] = []
         self._selected_id: int | None = None
+        self._pet_filter_id: int | None = None
         self._loaded = False
         self._can_write = permission_service.has_permission("CONSULTATIONS_WRITE")
         self._can_seal = permission_service.has_permission("CONSULTATIONS_SEAL")
@@ -82,7 +88,7 @@ class ConsultationsPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Buscar paciente o motivo...")
         self.search_input.setFixedWidth(220)
-        self.search_input.textChanged.connect(self._apply_filters)
+        self.search_input.textChanged.connect(self._on_search_changed)
         header.addWidget(self.search_input)
 
         self.status_filter = QComboBox()
@@ -92,10 +98,11 @@ class ConsultationsPage(QWidget):
         self.status_filter.currentIndexChanged.connect(self._apply_filters)
         header.addWidget(self.status_filter)
 
-        self.new_button = QPushButton("＋ Nueva consulta")
+        self.new_button = QPushButton("Nueva consulta", self)
+        set_button_icon(self.new_button, "add")
         self.new_button.clicked.connect(self._on_new)
-        self.new_button.setVisible(self._can_write)
         header.addWidget(self.new_button)
+        self.new_button.setVisible(self._can_write)
         layout.addLayout(header)
 
         body = QHBoxLayout()
@@ -148,7 +155,13 @@ class ConsultationsPage(QWidget):
         self.integrity_label = QLabel("")
         self.integrity_label.setObjectName("versionLabel")
         self.integrity_label.setVisible(False)
-        head.addWidget(self.integrity_label)
+        integrity_row = QHBoxLayout()
+        self.integrity_icon = icon_label("audit", 15)
+        self.integrity_icon.setVisible(False)
+        integrity_row.addWidget(self.integrity_icon)
+        integrity_row.addWidget(self.integrity_label)
+        integrity_row.addStretch()
+        head.addLayout(integrity_row)
         layout.addWidget(self.header_card)
 
         self.reason_input = QTextEdit()
@@ -171,23 +184,32 @@ class ConsultationsPage(QWidget):
         layout.addWidget(self._build_diagnoses_card())
         layout.addWidget(self._build_prescriptions_card())
         layout.addWidget(self._build_surgery_card())
+        layout.addWidget(self._build_amendments_card())
 
         actions = QHBoxLayout()
         self.save_button = QPushButton("Guardar borrador")
+        set_button_icon(self.save_button, "save")
         self.save_button.clicked.connect(self._on_save)
         self.finalize_button = QPushButton("Finalizar consulta")
+        set_button_icon(self.finalize_button, "success", color="#008FA3")
         self.finalize_button.setProperty("variant", "secondary")
         self.finalize_button.clicked.connect(self._on_finalize)
         self.seal_button = QPushButton("Sellar consulta")
+        set_button_icon(self.seal_button, "audit", color="#008FA3")
         self.seal_button.setProperty("variant", "secondary")
         self.seal_button.clicked.connect(self._on_seal)
+        self.verify_button = QPushButton("Verificar integridad")
+        self.verify_button.setProperty("variant", "secondary")
+        self.verify_button.clicked.connect(self._on_verify)
         self.print_button = QPushButton("Imprimir")
+        set_button_icon(self.print_button, "print", color="#008FA3")
         self.print_button.setProperty("variant", "secondary")
         self.print_button.clicked.connect(self._on_print)
         for button in (
             self.save_button,
             self.finalize_button,
             self.seal_button,
+            self.verify_button,
             self.print_button,
         ):
             actions.addWidget(button)
@@ -282,6 +304,7 @@ class ConsultationsPage(QWidget):
         layout.addWidget(self.prescriptions_list)
 
         self.calculator_button = QPushButton("Calculadora farmacológica")
+        set_button_icon(self.calculator_button, "weight", color="#008FA3")
         self.calculator_button.setProperty("variant", "secondary")
         self.calculator_button.clicked.connect(self._on_calculator)
         layout.addWidget(self.calculator_button, alignment=Qt.AlignLeft)
@@ -305,6 +328,7 @@ class ConsultationsPage(QWidget):
 
         row = QHBoxLayout()
         self.new_surgery_button = QPushButton("Registrar cirugía")
+        set_button_icon(self.new_surgery_button, "consultations", color="#008FA3")
         self.new_surgery_button.setProperty("variant", "secondary")
         self.new_surgery_button.clicked.connect(self._on_new_surgery)
         self.start_surgery_button = QPushButton("Iniciar")
@@ -330,6 +354,42 @@ class ConsultationsPage(QWidget):
         ):
             row.addWidget(button)
         layout.addLayout(row)
+        return card
+
+    def _build_amendments_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        title = QLabel("Correcciones clínicas (enmiendas)")
+        title.setObjectName("cardTitle")
+        layout.addWidget(title)
+
+        note = QLabel(
+            "Un registro sellado no se modifica. Las correcciones se agregan "
+            "como enmiendas inmutables con hash SHA-256."
+        )
+        note.setObjectName("versionLabel")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        self.amendments_list = QLabel("Sin enmiendas.")
+        self.amendments_list.setWordWrap(True)
+        self.amendments_list.setObjectName("versionLabel")
+        layout.addWidget(self.amendments_list)
+
+        self.amendment_reason = QLineEdit()
+        self.amendment_reason.setPlaceholderText("Motivo de la corrección")
+        layout.addWidget(self.amendment_reason)
+
+        self.amendment_text = QTextEdit()
+        self.amendment_text.setPlaceholderText("Texto de la enmienda / adenda")
+        self.amendment_text.setFixedHeight(64)
+        layout.addWidget(self.amendment_text)
+
+        self.add_amendment_button = QPushButton("Agregar enmienda")
+        self.add_amendment_button.setProperty("variant", "secondary")
+        self.add_amendment_button.clicked.connect(self._on_add_amendment)
+        layout.addWidget(self.add_amendment_button, alignment=Qt.AlignLeft)
         return card
 
     @staticmethod
@@ -389,6 +449,8 @@ class ConsultationsPage(QWidget):
         text = self.search_input.text().strip().lower()
         self.model.setRowCount(0)
         for item in self._items:
+            if self._pet_filter_id is not None and item.pet_id != self._pet_filter_id:
+                continue
             if status is not None and item.status != status:
                 continue
             haystack = (
@@ -452,9 +514,15 @@ class ConsultationsPage(QWidget):
             prescriptions = []
         self.prescriptions_list.setText(self._format_prescriptions(prescriptions))
         self._load_surgeries(consultation)
+        self._load_amendments(consultation)
         editable = consultation.status == "DRAFT" and self._can_write
         self._set_workspace_enabled(True, editable=editable)
         self.seal_button.setEnabled(consultation.status == "FINALIZED" and self._can_seal)
+        self.verify_button.setEnabled(consultation.status == "SEALED")
+        sealed_write = consultation.status == "SEALED" and self._can_write
+        self.amendment_reason.setEnabled(sealed_write)
+        self.amendment_text.setEnabled(sealed_write)
+        self.add_amendment_button.setEnabled(sealed_write)
         self.calculator_button.setEnabled(self._can_write)
         self.finalize_button.setEnabled(editable)
         self.save_button.setEnabled(editable)
@@ -463,14 +531,20 @@ class ConsultationsPage(QWidget):
     def _show_integrity(self, consultation: Consultation) -> None:
         if consultation.status != "SEALED":
             self.integrity_label.setVisible(False)
+            self.integrity_icon.setVisible(False)
             return
         try:
             intact = consultation_service.verify_seal(consultation.id)
         except (PermissionDeniedError, DatabaseConnectionError):
             intact = False
         self.integrity_label.setText(
-            "Integridad verificada ✓" if intact else "Error de integridad ⚠"
+            "Integridad verificada" if intact else "Error de integridad"
         )
+        self.integrity_icon.setPixmap(pixmap(
+            "success" if intact else "warning", 15,
+            "#14946F" if intact else "#D35762",
+        ))
+        self.integrity_icon.setVisible(True)
         self.integrity_label.setVisible(True)
 
     def _set_badge_color(self, status: str) -> None:
@@ -502,6 +576,10 @@ class ConsultationsPage(QWidget):
         for widget in widgets:
             widget.setEnabled(has_selection and editable)
         self.calculator_button.setEnabled(has_selection and self._can_write)
+        self.verify_button.setEnabled(False)
+        self.amendment_reason.setEnabled(False)
+        self.amendment_text.setEnabled(False)
+        self.add_amendment_button.setEnabled(False)
         self.surgery_combo.setEnabled(has_selection and self._can_surgery)
         for button in (
             self.new_surgery_button,
@@ -533,8 +611,21 @@ class ConsultationsPage(QWidget):
         return next((item for item in self._items if item.id == self._selected_id), None)
 
     def filter_by_pet_name(self, pet_name: str) -> None:
+        self._pet_filter_id = None
         self.search_input.setText(pet_name)
         self.refresh()
+
+    def filter_by_pet_id(self, pet_id: int) -> None:
+        """Abre el historial de la mascota exacta, incluso con nombres repetidos."""
+        self._pet_filter_id = pet_id
+        self.search_input.blockSignals(True)
+        self.search_input.clear()
+        self.search_input.blockSignals(False)
+        self.refresh()
+
+    def _on_search_changed(self) -> None:
+        self._pet_filter_id = None
+        self._apply_filters()
 
     def start_for_pet(self, pet_id: int) -> None:
         self.refresh()
@@ -594,6 +685,68 @@ class ConsultationsPage(QWidget):
             QMessageBox.warning(self, "Consultas", str(exc))
             return
         self.refresh()
+
+    def _load_amendments(self, consultation: Consultation) -> None:
+        try:
+            amendments = integrity_service.list_amendments(consultation.id)
+        except (PermissionDeniedError, DatabaseConnectionError):
+            amendments = []
+        if not amendments:
+            self.amendments_list.setText("Sin enmiendas.")
+            return
+        lines = []
+        for item in amendments:
+            when = item.created_at.strftime("%d/%m/%Y %H:%M") if item.created_at else "—"
+            lines.append(
+                f"{when} · {item.created_by_name}: {item.reason} — {item.amendment_text}"
+            )
+        self.amendments_list.setText("\n".join(lines))
+
+    def _on_add_amendment(self) -> None:
+        consultation = self._selected()
+        if consultation is None:
+            return
+        try:
+            integrity_service.add_amendment(
+                AmendmentFormData(
+                    consultation_id=consultation.id,
+                    reason=self.amendment_reason.text(),
+                    amendment_text=self.amendment_text.toPlainText(),
+                )
+            )
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
+            QMessageBox.warning(self, "Consultas", str(exc))
+            return
+        self.amendment_reason.clear()
+        self.amendment_text.clear()
+        self.refresh()
+
+    def _on_verify(self) -> None:
+        consultation = self._selected()
+        if consultation is None:
+            return
+        try:
+            report = integrity_service.verify_consultation_integrity(consultation.id)
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
+            QMessageBox.warning(self, "Consultas", str(exc))
+            return
+        if report.seal_ok is True:
+            seal_line = "Integridad verificada"
+        elif report.seal_ok is False:
+            seal_line = "Error de integridad"
+        else:
+            seal_line = "La consulta aún no está sellada."
+        amend_ok = sum(1 for _, ok in report.amendments if ok is True)
+        amend_bad = sum(1 for _, ok in report.amendments if ok is False)
+        amend_line = (
+            f"Enmiendas: {len(report.amendments)} "
+            f"(válidas: {amend_ok}, inválidas: {amend_bad})"
+        )
+        hash_line = f"Hash: {report.sealed_hash or '—'}"
+        QMessageBox.information(
+            self, "Integridad clínica", f"{seal_line}\n{amend_line}\n{hash_line}"
+        )
+        self._show_integrity(consultation)
 
     def _on_seal(self) -> None:
         consultation = self._selected()
@@ -728,7 +881,7 @@ class ConsultationsPage(QWidget):
             QMessageBox.warning(self, "Consultas", str(exc))
             return
         html = self._print_html(consultation, vitals, diagnoses)
-        dialog = QDialog(self)
+        dialog = ManagedDialog(self)
         dialog.setWindowTitle("Imprimir consulta")
         dialog.resize(640, 520)
         box = QVBoxLayout(dialog)

@@ -16,7 +16,7 @@ import oracledb
 
 from database.connection import connection_scope
 from models.user import User
-from repositories import user_repository
+from repositories import audit_repository, user_repository
 from services import permission_service, session
 from utils import validators
 from utils.security import hash_password
@@ -45,6 +45,12 @@ def list_users() -> list[User]:
         return user_repository.list_users(conn)
 
 
+def get_user(user_id: int) -> User | None:
+    permission_service.require_permission("USERS_MANAGE")
+    with connection_scope() as conn:
+        return user_repository.get_by_id(conn, user_id)
+
+
 def list_roles() -> list[tuple[int, str]]:
     permission_service.require_permission("USERS_MANAGE")
     from repositories import role_repository
@@ -56,19 +62,52 @@ def list_roles() -> list[tuple[int, str]]:
 def create_user(data: UserFormData) -> int:
     permission_service.require_permission("USERS_MANAGE")
     with connection_scope(commit=True) as conn:
-        return _create_user(conn, data)
+        user_id = _create_user(conn, data)
+        audit_repository.insert_event(
+            conn,
+            user_id=_current_user_id(),
+            entity_type="USER",
+            entity_id=user_id,
+            action="CREATE",
+            new_data={
+                "username": data.username.strip().lower(),
+                "role_id": data.role_id,
+                "is_active": data.is_active,
+            },
+        )
+        return user_id
 
 
 def update_user(user_id: int, data: UserFormData) -> None:
     permission_service.require_permission("USERS_MANAGE")
     with connection_scope(commit=True) as conn:
+        previous = user_repository.get_by_id(conn, user_id)
         _update_user(conn, user_id, data)
+        audit_repository.insert_event(
+            conn,
+            user_id=_current_user_id(),
+            entity_type="USER",
+            entity_id=user_id,
+            action="UPDATE",
+            old_data=_audit_user(previous),
+            new_data={"role_id": data.role_id, "is_active": data.is_active},
+        )
 
 
 def set_user_active(user_id: int, active: bool) -> None:
     permission_service.require_permission("USERS_MANAGE")
     with connection_scope(commit=True) as conn:
+        previous = user_repository.get_by_id(conn, user_id)
         _set_user_active(conn, user_id, active)
+        audit_repository.insert_event(
+            conn,
+            user_id=_current_user_id(),
+            entity_type="USER",
+            entity_id=user_id,
+            action="ACTIVATE" if active else "DEACTIVATE",
+            old_data=_audit_user(previous),
+            new_data={"is_active": active},
+        )
 
 
 def reset_password(user_id: int, password: str, confirmation: str) -> None:
@@ -78,7 +117,26 @@ def reset_password(user_id: int, password: str, confirmation: str) -> None:
         if user_repository.get_by_id(conn, user_id) is None:
             raise ValidationError("El usuario no existe.")
         user_repository.update_password(conn, user_id, hash_password(validated))
+        audit_repository.insert_event(
+            conn,
+            user_id=_current_user_id(),
+            entity_type="USER",
+            entity_id=user_id,
+            action="PASSWORD_RESET",
+            new_data={"password_changed": True},
+        )
         logger.info("Contraseña restablecida para el usuario %s", user_id)
+
+
+def _current_user_id() -> int | None:
+    current = session.get_current_user()
+    return current.id if current else None
+
+
+def _audit_user(user: User | None) -> dict | None:
+    if user is None:
+        return None
+    return {"role_id": user.role_id, "is_active": user.is_active}
 
 
 # ------------------------------------------------------------------ interno

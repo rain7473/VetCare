@@ -1,0 +1,2 @@
+"""Módulo visual de auditoría."""
+

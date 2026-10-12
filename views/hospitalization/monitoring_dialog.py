@@ -22,9 +22,10 @@ from services import monitoring_service
 from services.monitoring_service import MonitoringFormData, VitalRangeFormData
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
+from widgets.managed_dialog import ManagedDialog
 
 
-class VitalRangeDialog(QDialog):
+class VitalRangeDialog(ManagedDialog):
     """Configura un rango en VITAL_RANGES (sin inventar valores por defecto)."""
 
     def __init__(self, parent=None) -> None:
@@ -116,7 +117,7 @@ class VitalRangeDialog(QDialog):
         self.accept()
 
 
-class MonitoringDialog(QDialog):
+class MonitoringDialog(ManagedDialog):
     """Registra una medición y muestra historial/alertas del ingreso."""
 
     def __init__(self, hospitalization: Hospitalization, parent=None) -> None:

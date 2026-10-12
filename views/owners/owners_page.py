@@ -2,6 +2,8 @@
 
 import logging
 
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
@@ -61,10 +63,11 @@ class OwnersPage(QWidget):
         )
         header.addWidget(self.search_input)
 
-        self.new_button = QPushButton("＋ Nuevo propietario")
+        self.new_button = QPushButton("Nuevo propietario", self)
+        set_button_icon(self.new_button, "add")
         self.new_button.clicked.connect(self._on_new)
-        self.new_button.setVisible(self._can_write)
         header.addWidget(self.new_button)
+        self.new_button.setVisible(self._can_write)
 
         layout.addLayout(header)
 
@@ -92,17 +95,19 @@ class OwnersPage(QWidget):
         actions = QHBoxLayout()
         actions.addStretch()
 
-        self.edit_button = QPushButton("Editar")
+        self.edit_button = QPushButton("Editar", self)
+        set_button_icon(self.edit_button, "edit", color="#008FA3")
         self.edit_button.setProperty("variant", "secondary")
         self.edit_button.clicked.connect(self._on_edit)
-        self.edit_button.setVisible(self._can_write)
         actions.addWidget(self.edit_button)
+        self.edit_button.setVisible(self._can_write)
 
-        self.toggle_button = QPushButton("Activar / Desactivar")
+        self.toggle_button = QPushButton("Activar / Desactivar", self)
+        set_button_icon(self.toggle_button, "inactive", color="#008FA3")
         self.toggle_button.setProperty("variant", "secondary")
         self.toggle_button.clicked.connect(self._on_toggle_active)
-        self.toggle_button.setVisible(self._can_write)
         actions.addWidget(self.toggle_button)
+        self.toggle_button.setVisible(self._can_write)
 
         layout.addLayout(actions)
 

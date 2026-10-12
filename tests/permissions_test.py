@@ -84,8 +84,8 @@ def run() -> int:
         session.set_current_user(
             _fake_user(902, roles["ADMIN"], "ADMIN"), frozenset(admin_codes)
         )
-        results["ADMIN ve los 12 módulos"] = (
-            len(permission_service.accessible_modules()) == 12
+        results["ADMIN ve los 13 módulos"] = (
+            len(permission_service.accessible_modules()) == 13
         )
 
         # ------------------- Parte 3: reglas de user_service (ROLLBACK)

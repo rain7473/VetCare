@@ -2,6 +2,8 @@
 
 import logging
 
+from utils.icons import set_button_icon
+
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
@@ -62,7 +64,8 @@ class TriagePage(QWidget):
         self.all_dates_check.toggled.connect(self._on_all_dates)
         header.addWidget(self.all_dates_check)
 
-        self.new_button = QPushButton("＋ Nuevo triaje")
+        self.new_button = QPushButton("Nuevo triaje")
+        set_button_icon(self.new_button, "add")
         self.new_button.clicked.connect(self._on_new)
         header.addWidget(self.new_button)
 

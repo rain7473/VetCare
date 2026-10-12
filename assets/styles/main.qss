@@ -14,6 +14,8 @@ QWidget {
     color: #102A43;
 }
 
+QLabel#vetIcon { background: transparent; border: none; padding: 0; }
+
 QMainWindow, QDialog, QWidget#appBackground {
     background-color: #F5FAFC;
 }
@@ -62,6 +64,20 @@ QPushButton[variant="secondary"]:hover {
 
 QPushButton[variant="secondary"]:pressed {
     background-color: #CDEDF1;
+}
+
+QPushButton#selectorAddButton {
+    min-width: 36px;
+    max-width: 36px;
+    padding: 8px 0;
+    font-size: 19px;
+    font-weight: 700;
+}
+
+QLabel#selectorMessage {
+    color: #E5484D;
+    font-size: 12px;
+    background: transparent;
 }
 
 /* ---------- Campos de texto ---------- */
@@ -335,6 +351,57 @@ QLabel#statIcon {
     background: transparent;
 }
 
+QLabel#statDetail, QLabel#dashboardEmpty {
+    color: #6B8194;
+    font-size: 11px;
+    background: transparent;
+}
+
+QLabel#dashboardItem {
+    color: #334E68;
+    background-color: #F7FBFC;
+    border-left: 3px solid #14B8C4;
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 12px;
+}
+
+QLabel#dashboardItem[severity="critical"] { border-left-color: #E5484D; }
+QLabel#dashboardItem[severity="high"] { border-left-color: #F28C28; }
+QLabel#dashboardItem[severity="medium"] { border-left-color: #E4B93F; }
+QLabel#dashboardItem[severity="low"] { border-left-color: #63D7B0; }
+
+/* Dashboard analítico: estilos limitados a sus componentes. */
+QScrollArea#dashboardPanelScroll, QWidget#dashboardPanelBody { background: #FFFFFF; border: none; }
+QFrame#dashboardStatCard:hover, QFrame#dashboardStatCard:focus {
+    border: 1px solid #14B8C4;
+    background: #F7FDFD;
+}
+QLabel#dashboardCaption {
+    font-size: 12px;
+    color: #6B8194;
+    background: transparent;
+}
+QLabel#dashboardEmptyChart {
+    background: #F7FBFC;
+    color: #6B8194;
+    border: 1px dashed #D4E5ED;
+    border-radius: 12px;
+    padding: 18px;
+}
+QFrame#dashboardEvent {
+    background: #F7FBFC;
+    border: none;
+    border-left: 3px solid #63D7B0;
+    border-radius: 6px;
+}
+QFrame#dashboardEvent[severity="critical"] { border-left-color: #E5484D; background: #FFF4F4; }
+QFrame#dashboardEvent[severity="high"] { border-left-color: #F28C28; }
+QFrame#dashboardEvent[severity="medium"] { border-left-color: #E4B93F; }
+QLabel#dashboardEventTitle { font-size: 13px; font-weight: 600; background: transparent; }
+QPushButton#dashboardLink { background: transparent; color: #008FA3; padding: 2px 0; font-size: 12px; }
+QPushButton#dashboardLink:hover { color: #006978; text-decoration: underline; }
+
 QLabel#profileName {
     color: #102A43;
     font-size: 20px;
@@ -347,6 +414,178 @@ QLabel#photoPreview {
     border: 1px solid #C9E8EC;
     border-radius: 12px;
     font-size: 30px;
+}
+
+/* Perfil de Mascotas: estilos confinados al panel derecho. */
+QFrame#petProfilePanel {
+    background-color: #FFFFFF;
+    border: 1px solid #DCEAF0;
+    border-radius: 14px;
+}
+QFrame#petProfileHeader {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #F0FAFE, stop:1 #DEF2F9);
+    border-bottom: 1px solid #D5ECF3;
+    border-top-left-radius: 13px;
+    border-top-right-radius: 13px;
+}
+QLabel#petProfilePhoto {
+    background-color: #E6F4F8;
+    border: 2px solid #FFFFFF;
+    border-radius: 13px;
+    font-size: 28px;
+}
+QPushButton#petPhotoButton {
+    background-color: #006978;
+    color: #FFFFFF;
+    border: 2px solid #FFFFFF;
+    border-radius: 8px;
+    padding: 0;
+    font-size: 12px;
+}
+QLabel#petProfileName {
+    font-size: 24px;
+    font-weight: 800;
+    color: #102A43;
+    background: transparent;
+}
+QPushButton#petHeaderEdit {
+    background-color: #FFFFFF;
+    border: 1px solid #D4EAF0;
+    border-radius: 8px;
+    padding: 3px;
+}
+QPushButton#petHeaderEdit:hover { background-color: #CDEDF1; }
+QLabel#petHeaderMetric {
+    font-size: 12px;
+    color: #294D63;
+    background: transparent;
+}
+QLabel#petProfileSubtle {
+    color: #617B8E;
+    font-size: 12px;
+    background: transparent;
+}
+QLabel#petStatusBadge {
+    color: #006978;
+    background-color: #DDF6ED;
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+QLabel#petStatusBadge[petStatus="INACTIVE"] {
+    color: #9B5A00;
+    background-color: #FFF0CB;
+}
+QLabel#petStatusBadge[petStatus="DECEASED"] {
+    color: #B33F46;
+    background-color: #FDE9EA;
+}
+QTabWidget#petProfileTabs::pane {
+    border: none;
+    background-color: #F9FCFD;
+}
+QTabWidget#petProfileTabs, QTabBar#petProfileTabBar {
+    background-color: #F8FCFD;
+    border: none;
+}
+QTabBar#petProfileTabBar::tear { background-color: #F8FCFD; }
+QScrollArea#petProfileScroll {
+    background-color: #F8FCFD;
+    border: none;
+}
+QFrame#petProfilePanel QScrollBar:vertical {
+    background-color: #EEF6F9;
+    width: 8px;
+    margin: 0;
+    border: none;
+}
+QFrame#petProfilePanel QScrollBar::handle:vertical {
+    background-color: #BCD8E2;
+    border-radius: 4px;
+    min-height: 28px;
+}
+QFrame#petProfilePanel QScrollBar::add-line:vertical,
+QFrame#petProfilePanel QScrollBar::sub-line:vertical { height: 0; }
+QFrame#petProfilePanel QScrollBar::add-page:vertical,
+QFrame#petProfilePanel QScrollBar::sub-page:vertical { background: transparent; }
+QTabWidget#petProfileTabs QTabBar::tab {
+    color: #627D90;
+    background-color: #F4FAFC;
+    padding: 10px 5px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 11px;
+}
+QTabWidget#petProfileTabs QTabBar::tab:selected {
+    color: #007E91;
+    background-color: #FFFFFF;
+    border-bottom: 2px solid #14B8C4;
+    font-weight: 700;
+}
+QWidget#petProfileContent { background-color: #F9FCFD; }
+QWidget#petNotesColumn { background: transparent; }
+QFrame#petInfoCard {
+    background-color: #FFFFFF;
+    border: 1px solid #E2EDF1;
+    border-radius: 11px;
+}
+QLabel#petCardHeading {
+    color: #006978;
+    font-size: 12px;
+    font-weight: 700;
+    background: transparent;
+}
+QLabel#petFieldCaption {
+    color: #637E91;
+    font-size: 11px;
+    background: transparent;
+}
+QLabel#petFieldValue {
+    color: #102A43;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+}
+QFrame#petFieldSeparator {
+    background-color: #EEF3F6;
+    border: none;
+}
+QLabel#petProfileNote, QLabel#petProfileEmpty {
+    color: #627D90;
+    font-size: 12px;
+    background: transparent;
+}
+QLabel#petProfileEmpty { padding: 12px; }
+QPushButton#petProfileLink {
+    color: #008FA3;
+    background: transparent;
+    border: none;
+    padding: 4px 1px;
+    font-size: 11px;
+    text-align: left;
+}
+QPushButton#petProfileLink:hover { color: #006978; }
+QPushButton#petProfileLink:disabled { color: #A1B6C0; }
+QFrame#petProfileFooter {
+    background-color: #FFFFFF;
+    border-top: 1px solid #DFEBF0;
+    border-bottom-left-radius: 13px;
+    border-bottom-right-radius: 13px;
+}
+QPushButton#petQuickAction {
+    background-color: #008FA3;
+    color: #FFFFFF;
+    border-radius: 8px;
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+QPushButton#petQuickAction:hover { background-color: #006978; }
+QPushButton#petQuickAction:disabled {
+    background-color: #CBDDE3;
+    color: #F8FBFC;
 }
 
 /* ============================================================

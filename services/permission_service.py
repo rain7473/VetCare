@@ -39,6 +39,9 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "inventory": ("INVENTORY_READ", "INVENTORY_MANAGE"),
     "sales": ("SALES_READ", "SALES_CREATE"),
     "users": ("USERS_MANAGE",),
+    # El esquema no define AUDIT_READ. SETTINGS_MANAGE es exclusivo de ADMIN
+    # y protege la bitácora sin alterar Oracle para crear un permiso nuevo.
+    "audit": ("SETTINGS_MANAGE",),
     "settings": ("SETTINGS_MANAGE",),
 }
 

@@ -8,6 +8,7 @@ principal se construyen sin errores, en modo offscreen:
 
 import os
 import sys
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -28,16 +29,56 @@ def _fake_user():
 
 
 def run() -> int:
-    from main import create_app
+    from main import (
+        _show_primary_window,
+        _swap_window,
+        claim_single_instance,
+        create_app,
+    )
+    from PySide6.QtCore import QEvent, QTimer
+    from PySide6.QtNetwork import QLocalServer
+    from PySide6.QtWidgets import QApplication, QWidget
     from services import permission_service, session
     from views.login.login_window import LoginWindow
     from views.main_window import MainWindow
     from views.startup.setup_window import SetupWindow
     from widgets.sidebar import NAV_ITEMS
+    from widgets.managed_dialog import ManagedDialog
+
+    root = Path(__file__).resolve().parents[1]
 
     app = create_app([])
     setup = SetupWindow()
     login = LoginWindow()
+    _show_primary_window(login)
+    app.processEvents()
+
+    # Una transición no debe dejar el HWND anterior oculto. Esas superficies
+    # nativas residuales provocaban ventanas fantasma en Windows al abrir
+    # formularios modales como "Nueva mascota".
+    transition_source = LoginWindow()
+    transition_target = QWidget()
+    transition_source.show()
+    _swap_window(transition_source, transition_target)
+    app.processEvents()
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+    transition_source_removed = transition_source not in QApplication.topLevelWidgets()
+
+    dialog_parent = QWidget()
+    dialog = ManagedDialog(dialog_parent)
+    dialog.created_id = 123
+    QTimer.singleShot(0, dialog.accept)
+    dialog_result = dialog.exec()
+    dialog_data_available = dialog.created_id == 123
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+    dialog_surface_removed = dialog not in QApplication.topLevelWidgets()
+
+    instance_name = f"VetCare-smoke-{os.getpid()}"
+    first_instance = claim_single_instance(app, instance_name)
+    second_instance = claim_single_instance(app, instance_name)
+    test_server = getattr(app, "_vetcare_instance_server", None)
 
     # Sesión simulada con todos los permisos (como un ADMIN).
     all_codes = frozenset(
@@ -78,8 +119,15 @@ def run() -> int:
             )
         ),
         "LoginWindow construida": "Iniciar sesión" in login.windowTitle(),
-        "Sidebar define 12 módulos": len(NAV_ITEMS) == 12,
-        "Stack ADMIN con 12 páginas": main_window.stack.count() == 12,
+        "Login abre maximizado": login.isMaximized(),
+        "Transición destruye la ventana nativa anterior": transition_source_removed,
+        "Diálogo conserva datos al retornar": (
+            dialog_result == ManagedDialog.Accepted and dialog_data_available
+        ),
+        "Diálogo libera su ventana nativa": dialog_surface_removed,
+        "Solo una instancia permitida": first_instance and not second_instance,
+        "Sidebar define 13 módulos": len(NAV_ITEMS) == 13,
+        "Stack ADMIN con 13 páginas": main_window.stack.count() == 13,
         "Shell SALES con 3 páginas": sales_window.stack.count() == 3,
         "Página Propietarios integrada": "owners" in main_window._page_index,
         "Página Mascotas integrada": "pets" in main_window._page_index,
@@ -88,17 +136,26 @@ def run() -> int:
         "Página Consultas integrada": "consultations" in main_window._page_index,
         "Página Vacunas integrada": "vaccines" in main_window._page_index,
         "Página Hospitalización integrada": "hospitalization" in main_window._page_index,
+        "Página Inventario integrada": "inventory" in main_window._page_index,
+        "Página Ventas integrada": "sales" in main_window._page_index,
+        "Página Auditoría integrada": "audit" in main_window._page_index,
         "Navegación cambia de página": index_before != index_after,
         "Topbar muestra al usuario": (
             main_window.topbar._user.full_name == "Usuaria Demo"
         ),
-        "Dashboard con 4 stat cards": (
-            len(main_window.stack.widget(0).cards) == 4
+        "Dashboard por rol preparado": hasattr(main_window.stack.widget(0), "refresh"),
+        "Lanzador Windows sin consola disponible": (
+            (root / "launch_vetcare.vbs").is_file()
+            and (root / "VetCare.pyw").is_file()
+            and (root / ".venv" / "Scripts" / "pythonw.exe").is_file()
         ),
     }
     from services import session as _session
 
     _session.clear()
+    if test_server is not None:
+        test_server.close()
+    QLocalServer.removeServer(instance_name)
 
     failures = [name for name, ok in checks.items() if not ok]
     for name, ok in checks.items():

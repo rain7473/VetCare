@@ -4,7 +4,6 @@ import logging
 
 from PySide6.QtCore import QDateTime
 from PySide6.QtWidgets import (
-    QComboBox,
     QDateTimeEdit,
     QDialog,
     QFormLayout,
@@ -19,15 +18,19 @@ from database.connection import DatabaseConnectionError
 from models.appointment import Appointment
 from models.pet import Pet
 from models.user import User
-from services import appointment_service
+from services import appointment_service, permission_service, pet_service
 from services.appointment_service import AppointmentFormData
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
+from views.pets.pet_dialog import PetDialog
+from views.entity_creation import create_veterinarian_nested
+from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
+from widgets.managed_dialog import ManagedDialog
 
 logger = logging.getLogger(__name__)
 
 
-class AppointmentDialog(QDialog):
+class AppointmentDialog(ManagedDialog):
     """Formulario modal para crear o editar una cita."""
 
     def __init__(
@@ -55,16 +58,33 @@ class AppointmentDialog(QDialog):
         form = QFormLayout()
         form.setVerticalSpacing(12)
 
-        self.pet_combo = QComboBox()
-        for pet in self._pets:
-            self.pet_combo.addItem(f"{pet.name} ({pet.owner_name})", pet.id)
-        form.addRow("Mascota", self.pet_combo)
+        self.pet_selector = DynamicEntitySelector(
+            placeholder="Buscar mascota o propietario…",
+            add_tooltip="Crear mascota",
+        )
+        self.pet_selector.set_items(self._pet_items())
+        self.pet_selector.set_add_enabled(
+            permission_service.has_permission("PETS_WRITE"),
+            "Crear mascota" if permission_service.has_permission("PETS_WRITE")
+            else "Sin permiso para crear mascotas",
+        )
+        self.pet_selector.add_requested.connect(self._create_pet)
+        form.addRow("Mascota", self.pet_selector)
 
-        self.vet_combo = QComboBox()
-        self.vet_combo.addItem("Sin asignar", None)
-        for vet in self._vets:
-            self.vet_combo.addItem(vet.full_name, vet.id)
-        form.addRow("Veterinario", self.vet_combo)
+        self.vet_selector = DynamicEntitySelector(
+            placeholder="Buscar veterinario…",
+            add_tooltip="Crear usuario veterinario",
+            allow_empty=True,
+            empty_label="Sin asignar",
+        )
+        self.vet_selector.set_items(self._vet_items(), selected_id=None)
+        self.vet_selector.set_add_enabled(
+            permission_service.has_permission("USERS_MANAGE"),
+            "Crear veterinario" if permission_service.has_permission("USERS_MANAGE")
+            else "Sin permiso para crear usuarios",
+        )
+        self.vet_selector.add_requested.connect(self._create_veterinarian)
+        form.addRow("Veterinario", self.vet_selector)
 
         self.datetime_input = QDateTimeEdit(QDateTime.currentDateTime().addSecs(3600))
         self.datetime_input.setCalendarPopup(True)
@@ -102,14 +122,13 @@ class AppointmentDialog(QDialog):
 
     def _load_appointment(self) -> None:
         appt = self._appointment
-        index = self.pet_combo.findData(appt.pet_id)
-        if index < 0:
-            self.pet_combo.addItem(appt.pet_name or "(mascota)", appt.pet_id)
-            index = self.pet_combo.count() - 1
-        self.pet_combo.setCurrentIndex(index)
-
-        vet_index = self.vet_combo.findData(appt.veterinarian_id)
-        self.vet_combo.setCurrentIndex(vet_index if vet_index >= 0 else 0)
+        if not self.pet_selector.select_id(appt.pet_id):
+            self.pet_selector.set_items(
+                self._pet_items()
+                + [SelectorItem(appt.pet_id, appt.pet_name or "(mascota)")],
+                selected_id=appt.pet_id,
+            )
+        self.vet_selector.select_id(appt.veterinarian_id)
 
         at = appt.appointment_at
         self.datetime_input.setDateTime(
@@ -120,8 +139,8 @@ class AppointmentDialog(QDialog):
 
     def _on_save(self) -> None:
         data = AppointmentFormData(
-            pet_id=self.pet_combo.currentData(),
-            veterinarian_id=self.vet_combo.currentData(),
+            pet_id=self.pet_selector.current_id(),
+            veterinarian_id=self.vet_selector.current_id(),
             appointment_at=self.datetime_input.dateTime().toPython(),
             reason=self.reason_input.toPlainText(),
             notes=self.notes_input.toPlainText(),
@@ -141,3 +160,45 @@ class AppointmentDialog(QDialog):
             self.error_label.setVisible(True)
             return
         self.accept()
+
+    def _pet_items(self) -> list[SelectorItem]:
+        return [
+            SelectorItem(
+                pet.id,
+                f"{pet.name} ({pet.owner_name})",
+                " ".join(filter(None, [pet.microchip_number, pet.owner_name])),
+            )
+            for pet in self._pets
+        ]
+
+    def _create_pet(self) -> None:
+        try:
+            owners = pet_service.list_active_owners()
+            species = pet_service.list_species()
+        except (PermissionDeniedError, DatabaseConnectionError) as exc:
+            self.error_label.setText(str(exc))
+            self.error_label.setVisible(True)
+            return
+        dialog = PetDialog(owners, species, parent=self)
+        if not dialog.exec() or dialog.created_id is None:
+            return
+        pet = pet_service.get_pet(dialog.created_id)
+        if pet is None:
+            return
+        self._pets.append(pet)
+        self.pet_selector.set_items(self._pet_items(), selected_id=pet.id)
+
+    def _vet_items(self) -> list[SelectorItem]:
+        return [SelectorItem(v.id, v.full_name, v.username) for v in self._vets]
+
+    def _create_veterinarian(self) -> None:
+        try:
+            vet = create_veterinarian_nested(self)
+        except (PermissionDeniedError, DatabaseConnectionError) as exc:
+            self.error_label.setText(str(exc))
+            self.error_label.setVisible(True)
+            return
+        if vet is None:
+            return
+        self._vets.append(vet)
+        self.vet_selector.set_items(self._vet_items(), selected_id=vet.id)

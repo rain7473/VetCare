@@ -20,6 +20,7 @@ from config.constants import APP_NAME, APP_TAGLINE
 from database.connection import DatabaseConnectionError
 from services import auth_service
 from services.auth_service import AuthenticationError
+from utils.icons import pixmap
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class LoginWindow(QWidget):
         layout.setContentsMargins(44, 36, 44, 36)
         layout.setSpacing(6)
 
-        logo = QLabel("🐾")
+        logo = QLabel()
+        logo.setPixmap(pixmap("pets", 32, "#FFFFFF"))
         logo.setObjectName("logoBadge")
         logo.setFixedSize(72, 72)
         logo.setAlignment(Qt.AlignCenter)

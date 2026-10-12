@@ -20,13 +20,16 @@ from models.consultation import Consultation
 from models.medication import Medication
 from models.surgery import Surgery
 from models.user import User
-from services import surgery_service
+from services import permission_service, surgery_service
 from services.permission_service import PermissionDeniedError
 from services.surgery_service import SurgeryFormData
 from utils.validators import ValidationError
+from views.entity_creation import create_veterinarian_nested
+from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
+from widgets.managed_dialog import ManagedDialog
 
 
-class SurgeryDialog(QDialog):
+class SurgeryDialog(ManagedDialog):
     """Formulario modal de control quirúrgico."""
 
     def __init__(
@@ -61,10 +64,18 @@ class SurgeryDialog(QDialog):
         )
         form.addRow("Paciente", patient)
 
-        self.vet_combo = QComboBox()
-        for vet in self._vets:
-            self.vet_combo.addItem(vet.full_name, vet.id)
-        form.addRow("Veterinario", self.vet_combo)
+        self.vet_selector = DynamicEntitySelector(
+            placeholder="Buscar veterinario…",
+            add_tooltip="Crear usuario veterinario",
+        )
+        self.vet_selector.set_items(self._vet_items())
+        self.vet_selector.set_add_enabled(
+            permission_service.has_permission("USERS_MANAGE"),
+            "Crear veterinario" if permission_service.has_permission("USERS_MANAGE")
+            else "Sin permiso para crear usuarios",
+        )
+        self.vet_selector.add_requested.connect(self._create_veterinarian)
+        form.addRow("Veterinario", self.vet_selector)
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Ej.: Ovariohisterectomía")
@@ -97,11 +108,27 @@ class SurgeryDialog(QDialog):
         self.reco_input.setPlaceholderText("Recomendaciones de recuperación")
         form.addRow("Recomendaciones", self.reco_input)
 
-        self.med_combo = QComboBox()
-        self.med_combo.addItem("Sin medicamento adicional", None)
-        for medication in self._medications:
-            self.med_combo.addItem(medication.name, medication.id)
-        form.addRow("Medicamento", self.med_combo)
+        self.med_selector = DynamicEntitySelector(
+            placeholder="Buscar medicamento…",
+            add_tooltip="Crear medicamento",
+            allow_empty=True,
+            empty_label="Sin medicamento adicional",
+        )
+        self.med_selector.set_items(
+            [
+                SelectorItem(
+                    m.id,
+                    m.name,
+                    " ".join(filter(None, [m.active_ingredient, m.presentation])),
+                )
+                for m in self._medications
+            ],
+            selected_id=None,
+        )
+        self.med_selector.set_add_enabled(
+            False, "El catálogo farmacológico se administra desde configuración médica"
+        )
+        form.addRow("Medicamento", self.med_selector)
 
         self.dose_input = QLineEdit()
         self.dose_input.setPlaceholderText("Dosis (texto, opcional)")
@@ -132,9 +159,7 @@ class SurgeryDialog(QDialog):
 
     def _load_surgery(self) -> None:
         surgery = self._surgery
-        index = self.vet_combo.findData(surgery.veterinarian_id)
-        if index >= 0:
-            self.vet_combo.setCurrentIndex(index)
+        self.vet_selector.select_id(surgery.veterinarian_id)
         self.name_input.setText(surgery.procedure_name)
         if surgery.scheduled_at:
             self.when_input.setDateTime(
@@ -150,14 +175,14 @@ class SurgeryDialog(QDialog):
         weight = self.weight_input.value()
         return SurgeryFormData(
             consultation_id=self._consultation.id,
-            veterinarian_id=self.vet_combo.currentData(),
+            veterinarian_id=self.vet_selector.current_id(),
             procedure_name=self.name_input.text(),
             scheduled_at=self.when_input.dateTime().toPython(),
             weight_kg=weight if weight > 0 else None,
             preoperative_notes=self.preop_input.toPlainText(),
             postoperative_notes=self.postop_input.toPlainText(),
             recovery_recommendations=self.reco_input.toPlainText(),
-            medication_id=self.med_combo.currentData(),
+            medication_id=self.med_selector.current_id(),
             medication_dose_text=self.dose_input.text(),
             medication_route=self.route_input.text(),
         )
@@ -173,3 +198,18 @@ class SurgeryDialog(QDialog):
             self.error_label.setVisible(True)
             return
         self.accept()
+
+    def _vet_items(self) -> list[SelectorItem]:
+        return [SelectorItem(v.id, v.full_name, v.username) for v in self._vets]
+
+    def _create_veterinarian(self) -> None:
+        try:
+            vet = create_veterinarian_nested(self)
+        except (PermissionDeniedError, DatabaseConnectionError) as exc:
+            self.error_label.setText(str(exc))
+            self.error_label.setVisible(True)
+            return
+        if vet is None:
+            return
+        self._vets.append(vet)
+        self.vet_selector.set_items(self._vet_items(), selected_id=vet.id)

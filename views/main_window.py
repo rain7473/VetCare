@@ -20,13 +20,16 @@ from PySide6.QtWidgets import (
 from config.constants import APP_NAME
 from models.user import User
 from services import permission_service
+from views.audit.audit_page import AuditPage
 from views.appointments.appointments_page import AppointmentsPage
 from views.consultations.consultations_page import ConsultationsPage
-from views.dashboard.dashboard_page import DashboardPage
+from views.dashboard.dashboard_page import DashboardPage, QUICK_ACTIONS
 from views.hospitalization.hospitalization_page import HospitalizationPage
+from views.inventory.inventory_page import InventoryPage
 from views.owners.owners_page import OwnersPage
 from views.pets.pets_page import PetsPage
 from views.placeholder_page import PlaceholderPage
+from views.sales.sales_page import SalesPage
 from views.triage.triage_page import TriagePage
 from views.users.users_page import UsersPage
 from views.vaccines.vaccines_page import VaccinesPage
@@ -36,10 +39,8 @@ from widgets.topbar import Topbar
 logger = logging.getLogger(__name__)
 
 # Módulos placeholder: clave → (título, objetivo en el que se implementa)
-_PLACEHOLDER_PAGES: dict[str, tuple[str, int]] = {
-    "inventory": ("Inventario", 19),
-    "sales": ("Ventas", 21),
-    "settings": ("Configuración", 23),
+_PLACEHOLDER_PAGES: dict[str, tuple[str, int | None]] = {
+    "settings": ("Configuración", None),
 }
 
 
@@ -81,7 +82,11 @@ class MainWindow(QMainWindow):
         right.addWidget(self.topbar)
 
         self.stack = QStackedWidget()
-        self._add_page("dashboard", DashboardPage(self._user))
+        dashboard = DashboardPage(self._user)
+        dashboard.navigated.connect(self.navigate_to)
+        dashboard.create_requested.connect(self._create_from_dashboard)
+        self.logout_requested.connect(dashboard.deactivate)
+        self._add_page("dashboard", dashboard)
         if "owners" in allowed:
             self._add_page("owners", OwnersPage())
         if "pets" in allowed:
@@ -100,8 +105,14 @@ class MainWindow(QMainWindow):
             self._add_page("vaccines", VaccinesPage())
         if "hospitalization" in allowed:
             self._add_page("hospitalization", HospitalizationPage())
+        if "inventory" in allowed:
+            self._add_page("inventory", InventoryPage())
+        if "sales" in allowed:
+            self._add_page("sales", SalesPage())
         if "users" in allowed:
             self._add_page("users", UsersPage())
+        if "audit" in allowed:
+            self._add_page("audit", AuditPage())
         for key, (title, objective) in _PLACEHOLDER_PAGES.items():
             if key in allowed:
                 self._add_page(key, PlaceholderPage(title, objective))
@@ -111,6 +122,20 @@ class MainWindow(QMainWindow):
 
     def _add_page(self, key: str, page: QWidget) -> None:
         self._page_index[key] = self.stack.addWidget(page)
+
+    def _create_from_dashboard(self, key: str) -> None:
+        action = QUICK_ACTIONS.get(key)
+        if not action or key not in self._page_index:
+            return
+        if not permission_service.has_permission(action[1]):
+            QMessageBox.warning(self, APP_NAME, "Permiso denegado: no puede crear este registro.")
+            return
+        self.navigate_to(key)
+        self.stack.widget(self._page_index[key])._on_new()
+
+    def closeEvent(self, event):
+        self.stack.widget(self._page_index["dashboard"]).deactivate()
+        super().closeEvent(event)
 
     def navigate_to(self, key: str) -> None:
         """Cambia el módulo visible, verificando el permiso en la lógica."""
@@ -146,7 +171,7 @@ class MainWindow(QMainWindow):
         page = self.stack.widget(self._page_index["vaccines"])
         page.start_for_pet(pet_id)
 
-    def _open_consultation_history(self, pet_name: str) -> None:
+    def _open_consultation_history(self, pet_id: int) -> None:
         if not permission_service.can_access_module("consultations"):
             QMessageBox.warning(
                 self, APP_NAME, "Permiso denegado: no puede abrir el historial."
@@ -154,4 +179,4 @@ class MainWindow(QMainWindow):
             return
         self.navigate_to("consultations")
         page = self.stack.widget(self._page_index["consultations"])
-        page.filter_by_pet_name(pet_name)
+        page.filter_by_pet_id(pet_id)
