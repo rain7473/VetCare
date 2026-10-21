@@ -83,13 +83,16 @@ def _row_to_item(row: tuple) -> SaleItem:
 
 
 def list_sales(
-    conn: oracledb.Connection, *, limit: int = 200
+    conn: oracledb.Connection, *, limit: int = 200, sold_by: int | None = None
 ) -> list[Sale]:
+    sql = _SALE_SELECT
+    params = {"lim": limit}
+    if sold_by is not None:
+        sql += " WHERE s.sold_by = :sold_by"
+        params["sold_by"] = sold_by
+    sql += " ORDER BY s.sold_at DESC, s.id DESC FETCH FIRST :lim ROWS ONLY"
     with conn.cursor() as cur:
-        cur.execute(
-            _SALE_SELECT + " ORDER BY s.sold_at DESC FETCH FIRST :lim ROWS ONLY",
-            {"lim": limit},
-        )
+        cur.execute(sql, params)
         return [_row_to_sale(row) for row in cur.fetchall()]
 
 

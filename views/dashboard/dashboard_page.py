@@ -134,6 +134,7 @@ class DashboardPage(QWidget):
         self._revision = 0
         self._snapshot = None
         self.cards = {}
+        self._arranged = {}
         self._build_ui()
         if autoload:
             QTimer.singleShot(0, self.refresh)
@@ -144,6 +145,7 @@ class DashboardPage(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         content = QWidget()
         content.setObjectName("pageArea")
         self.scroll.setWidget(content)
@@ -267,7 +269,6 @@ class DashboardPage(QWidget):
         self._busy = True
         self._pending = False
         self.refresh_button.setEnabled(False)
-        self.refresh_button.setText("Actualizando…")
         self._worker = _DashboardWorker(self._loader, self._user, period, self._revision)
         self._worker.signals.finished.connect(self._finished, Qt.QueuedConnection)
         QThreadPool.globalInstance().start(self._worker)
@@ -277,7 +278,6 @@ class DashboardPage(QWidget):
         self._busy = False
         self._worker = None
         self.refresh_button.setEnabled(True)
-        self.refresh_button.setText("Actualizar")
         if not self._active or session.get_current_user() != self._user:
             return
         if revision == self._revision:
@@ -287,7 +287,16 @@ class DashboardPage(QWidget):
                 if self._snapshot is None:
                     self.period_label.setText("Sin datos cargados. Verifique la conexión y vuelva a intentarlo.")
             else:
-                self._render(snapshot)
+                # _render replaces cards and rebuilds panel contents. Keep Qt
+                # from painting the intermediate empty/reflowed layouts, which
+                # otherwise appear as a brief flash when opening the dashboard.
+                content = self.scroll.widget()
+                content.setUpdatesEnabled(False)
+                try:
+                    self._render(snapshot)
+                finally:
+                    content.setUpdatesEnabled(True)
+                    content.update()
                 self.loaded.emit()
         if self._pending:
             self.refresh()
@@ -301,17 +310,33 @@ class DashboardPage(QWidget):
 
     def _render(self, snapshot):
         self._snapshot = snapshot
-        for card in self.cards.values():
-            self.card_grid.removeWidget(card)
-            card.deleteLater()
-        self.cards.clear()
+        old_cards = self.cards
+        self.cards = {}
         for metric in snapshot.metrics:
             clickable = bool(metric.module) and permission_service.can_access_module(metric.module)
-            card = StatCard(metric.title, metric.value, metric.icon, metric.detail, clickable=clickable, parent=self.scroll.widget())
-            if clickable:
-                card.setToolTip(f"Abrir {metric.module}")
-                card.clicked.connect(lambda key=metric.module: self.navigated.emit(key))
+            card = old_cards.pop(metric.key, None)
+            if card is not None and (card._clickable != clickable or card.property("metricModule") != metric.module or card.property("metricIcon") != metric.icon):
+                self.card_grid.removeWidget(card)
+                card.hide()
+                card.deleteLater()
+                card = None
+            if card is None:
+                card = StatCard(metric.title, metric.value, metric.icon, metric.detail, clickable=clickable, parent=self.scroll.widget())
+                card.setProperty("metricModule", metric.module)
+                card.setProperty("metricIcon", metric.icon)
+                if clickable:
+                    card.setToolTip(f"Abrir {metric.module}")
+                    card.clicked.connect(lambda key=metric.module: self.navigated.emit(key))
+            else:
+                card.title_label.setText(metric.title)
+                card.set_value(metric.value)
+                card.set_detail(metric.detail)
+                card.setAccessibleName(f"{metric.title}: {metric.value}")
             self.cards[metric.key] = card
+        for card in old_cards.values():
+            self.card_grid.removeWidget(card)
+            card.hide()
+            card.deleteLater()
         stamp = snapshot.loaded_at or datetime.now()
         self.subtitle.setText(f"{ROLE_DISPLAY_NAMES.get(snapshot.role_name, snapshot.role_name)} · Actualizado {stamp:%d/%m/%Y %H:%M}")
         period = snapshot.period
@@ -336,8 +361,11 @@ class DashboardPage(QWidget):
         self.activity_panel.set_items(snapshot.recent_activity[:5])
         self._reflow()
 
-    @staticmethod
-    def _arrange(grid, widgets, columns):
+    def _arrange(self, grid, widgets, columns):
+        state = (tuple(widgets), columns)
+        if self._arranged.get(grid) == state:
+            return
+        self._arranged[grid] = state
         while grid.count():
             grid.takeAt(0)
         for col in range(max(grid.columnCount(), columns)):

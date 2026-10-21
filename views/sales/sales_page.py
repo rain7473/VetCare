@@ -209,7 +209,7 @@ class SalesPage(QWidget):
         refresh = QPushButton("Actualizar")
         set_button_icon(refresh, "refresh", color="#008FA3")
         refresh.setProperty("variant", "secondary")
-        refresh.clicked.connect(self.refresh_history)
+        refresh.clicked.connect(lambda _checked=False: self.refresh_history())
         head.addWidget(refresh)
         layout.addLayout(head)
 
@@ -234,9 +234,12 @@ class SalesPage(QWidget):
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
         if not self._loaded:
-            self.refresh_catalog()
-            self.refresh_history()
-            self._loaded = True
+            self.refresh()
+
+    def refresh(self) -> None:
+        self.refresh_catalog()
+        self.refresh_history()
+        self._loaded = True
 
     def refresh_catalog(self) -> None:
         try:
@@ -275,17 +278,24 @@ class SalesPage(QWidget):
             selected_id=None,
         )
 
-    def refresh_history(self) -> None:
+    def refresh_history(self, selected_id: int | None = None) -> None:
+        if selected_id is None:
+            rows = self.hist_table.selectionModel().selectedRows()
+            if rows:
+                selected_id = self.hist_model.item(rows[0].row(), 0).data(Qt.UserRole)
         try:
             self._sales = sales_service.list_sales()
         except (PermissionDeniedError, DatabaseConnectionError) as exc:
             QMessageBox.warning(self, "Ventas", str(exc))
             return
         self.hist_model.setRowCount(0)
-        for sale in self._sales:
+        selected_row = None
+        for index, sale in enumerate(self._sales):
+            invoice_item = QStandardItem(sale.invoice_number)
+            invoice_item.setData(sale.id, Qt.UserRole)
             self.hist_model.appendRow(
                 [
-                    QStandardItem(sale.invoice_number),
+                    invoice_item,
                     QStandardItem(sale.sold_at.strftime("%d/%m/%Y %H:%M")),
                     QStandardItem(sale.owner_name or "Mostrador"),
                     QStandardItem(f"${sale.total:.2f}"),
@@ -294,6 +304,11 @@ class SalesPage(QWidget):
                     QStandardItem(sale.sold_by_name or "—"),
                 ]
             )
+            if sale.id == selected_id:
+                selected_row = index
+        if selected_row is not None:
+            self.hist_table.selectRow(selected_row)
+            self.hist_table.scrollTo(self.hist_model.index(selected_row, 0))
 
     def _find_product(self, product_id: int) -> Product | None:
         for p in self._products:
@@ -423,20 +438,20 @@ class SalesPage(QWidget):
         )
         try:
             sale_id = sales_service.complete_sale(data)
-            sale = sales_service.get_sale(sale_id)
         except ValidationError as exc:
             QMessageBox.warning(self, "Ventas", str(exc))
             return
         except (PermissionDeniedError, DatabaseConnectionError) as exc:
             QMessageBox.warning(self, "Ventas", str(exc))
             return
+        self._clear_cart()
+        self.refresh_catalog()
+        self.refresh_history(selected_id=sale_id)
+        sale = next((item for item in self._sales if item.id == sale_id), None)
         invoice = sale.invoice_number if sale else str(sale_id)
         QMessageBox.information(
             self, "Venta registrada", f"Venta completada.\nFactura: {invoice}"
         )
-        self._clear_cart()
-        self.refresh_catalog()
-        self.refresh_history()
 
     def _create_product(self) -> None:
         dialog = ProductDialog(parent=self)

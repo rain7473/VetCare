@@ -26,6 +26,7 @@ from repositories import (
     sales_repository,
 )
 from services import permission_service, session
+from services.permission_service import PermissionDeniedError
 from utils import validators
 from utils.validators import ValidationError
 
@@ -72,15 +73,29 @@ def _parse_money(raw: str, label: str, *, allow_zero: bool = True) -> Decimal:
 
 
 def list_sales() -> list[Sale]:
-    permission_service.require_permission("SALES_READ")
+    seller_id = _visible_seller_id()
     with connection_scope() as conn:
-        return sales_repository.list_sales(conn)
+        return sales_repository.list_sales(conn, sold_by=seller_id)
 
 
 def get_sale(sale_id: int) -> Sale | None:
-    permission_service.require_permission("SALES_READ")
+    seller_id = _visible_seller_id()
     with connection_scope() as conn:
-        return sales_repository.get_sale(conn, sale_id)
+        sale = sales_repository.get_sale(conn, sale_id)
+    if sale is not None and seller_id is not None and sale.sold_by != seller_id:
+        raise PermissionDeniedError("SALES_READ")
+    return sale
+
+
+def _visible_seller_id() -> int | None:
+    """El vendedor sin permiso de lectura solo consulta sus propias ventas."""
+    if permission_service.has_permission("SALES_READ"):
+        return None
+    permission_service.require_permission("SALES_CREATE")
+    current = session.get_current_user()
+    if current is None:
+        raise PermissionDeniedError("SALES_READ")
+    return current.id
 
 
 def complete_sale(data: SaleFormData) -> int:
