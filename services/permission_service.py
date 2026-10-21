@@ -49,7 +49,17 @@ MODULE_PERMISSIONS: dict[str, tuple[str, ...]] = {
 def load_role_permissions(role_id: int) -> frozenset[str]:
     """Carga desde Oracle los códigos de permiso de un rol."""
     with connection_scope() as conn:
-        return frozenset(permission_repository.get_codes_for_role(conn, role_id))
+        permissions = set(permission_repository.get_codes_for_role(conn, role_id))
+        # El triaje forma parte del flujo clínico del veterinario. Algunas
+        # instalaciones antiguas no tenían esta relación en ROLE_PERMISSIONS;
+        # mantenerla aquí permite actualizar el acceso sin bloquear el inicio
+        # de sesión ni requerir una migración manual de cada base existente.
+        with conn.cursor() as cur:
+            cur.execute("SELECT name FROM roles WHERE id = :role_id", {"role_id": role_id})
+            row = cur.fetchone()
+        if row and row[0] == "VETERINARIAN":
+            permissions.add("TRIAGE_CREATE")
+        return frozenset(permissions)
 
 
 def has_permission(code: str) -> bool:

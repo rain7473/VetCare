@@ -14,13 +14,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QTableView,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from config.constants import Colors
 from database.connection import DatabaseConnectionError
-from models.vaccine import PetVaccination
+from models.vaccine import PetVaccination, Vaccine
 from services import vaccine_service
 from services.permission_service import PermissionDeniedError
 from views.vaccines.vaccine_dialogs import ApplyDialog, CatalogDialog
@@ -36,6 +37,8 @@ _COLUMNS = [
     "Aplicó",
 ]
 
+_CATALOG_COLUMNS = ["Vacuna", "Fabricante", "Descripción", "Estado"]
+
 
 class VaccinesPage(QWidget):
     """Historial de vacunación con alertas por fecha próxima."""
@@ -44,6 +47,7 @@ class VaccinesPage(QWidget):
         super().__init__()
         self.setObjectName("pageArea")
         self._items: list[PetVaccination] = []
+        self._catalog: list[Vaccine] = []
         self._loaded = False
         self._build_ui()
 
@@ -82,6 +86,7 @@ class VaccinesPage(QWidget):
         self.alert_label.setVisible(False)
         layout.addWidget(self.alert_label)
 
+        self.tabs = QTabWidget()
         self.model = QStandardItemModel(0, len(_COLUMNS))
         self.model.setHorizontalHeaderLabels(_COLUMNS)
         self.table = QTableView()
@@ -91,7 +96,19 @@ class VaccinesPage(QWidget):
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        layout.addWidget(self.table, stretch=1)
+        self.tabs.addTab(self.table, "Aplicaciones")
+
+        self.catalog_model = QStandardItemModel(0, len(_CATALOG_COLUMNS))
+        self.catalog_model.setHorizontalHeaderLabels(_CATALOG_COLUMNS)
+        self.catalog_table = QTableView()
+        self.catalog_table.setModel(self.catalog_model)
+        self.catalog_table.setSelectionBehavior(QTableView.SelectRows)
+        self.catalog_table.setEditTriggers(QTableView.NoEditTriggers)
+        self.catalog_table.setAlternatingRowColors(True)
+        self.catalog_table.verticalHeader().setVisible(False)
+        self.catalog_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tabs.addTab(self.catalog_table, "Catálogo")
+        layout.addWidget(self.tabs, stretch=1)
 
         note = QLabel(
             "Las próximas fechas las indica el veterinario; VetCare no inventa calendarios."
@@ -107,6 +124,7 @@ class VaccinesPage(QWidget):
     def refresh(self) -> None:
         try:
             self._items = vaccine_service.list_applications()
+            self._catalog = vaccine_service.list_catalog()
             alerts = vaccine_service.list_due_alerts(30)
             self._loaded = True
         except (PermissionDeniedError, DatabaseConnectionError) as exc:
@@ -156,10 +174,29 @@ class VaccinesPage(QWidget):
             for cell in row:
                 cell.setEditable(False)
             self.model.appendRow(row)
+        self._apply_catalog_filter()
+
+    def _apply_catalog_filter(self) -> None:
+        text = self.search_input.text().strip().lower()
+        self.catalog_model.setRowCount(0)
+        for vaccine in self._catalog:
+            haystack = f"{vaccine.name} {vaccine.manufacturer or ''} {vaccine.description or ''}".lower()
+            if text and text not in haystack:
+                continue
+            row = [
+                QStandardItem(vaccine.name),
+                QStandardItem(vaccine.manufacturer or "—"),
+                QStandardItem(vaccine.description or "—"),
+                QStandardItem("Activa" if vaccine.is_active else "Inactiva"),
+            ]
+            for cell in row:
+                cell.setEditable(False)
+            self.catalog_model.appendRow(row)
 
     def _on_catalog(self) -> None:
         if CatalogDialog(parent=self).exec():
             self.refresh()
+            self.tabs.setCurrentWidget(self.catalog_table)
 
     def _on_apply(self, preferred_pet_id: int | None = None) -> None:
         try:
@@ -180,6 +217,7 @@ class VaccinesPage(QWidget):
             return
         if ApplyDialog(pets, vaccines, preferred_pet_id=preferred_pet_id, parent=self).exec():
             self.refresh()
+            self.tabs.setCurrentWidget(self.table)
 
     def start_for_pet(self, pet_id: int) -> None:
         self.refresh()

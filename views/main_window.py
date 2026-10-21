@@ -148,6 +148,10 @@ class MainWindow(QMainWindow):
             )
             return
         if key in self._page_index:
+            page = self.stack.widget(self._page_index[key])
+            refresh = getattr(page, "refresh", None)
+            if callable(refresh):
+                refresh()
             self.stack.setCurrentIndex(self._page_index[key])
             self.sidebar.set_active(key)
 

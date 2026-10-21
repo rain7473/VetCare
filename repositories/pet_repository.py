@@ -122,7 +122,8 @@ def update_pet(conn: oracledb.Connection, pet_id: int, **fields) -> None:
                 blood_type = :blood_type,
                 allergies = :allergies,
                 chronic_conditions = :chronic_conditions,
-                status = :status
+                status = :status,
+                updated_at = SYSTIMESTAMP
             WHERE id = :pet_id
             """,
             {**fields, "pet_id": pet_id},
@@ -133,7 +134,7 @@ def set_status(conn: oracledb.Connection, pet_id: int, status: str) -> None:
     """Cambia el estado (ACTIVE/DECEASED/INACTIVE). No hace COMMIT."""
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE pets SET status = :status WHERE id = :id",
+            "UPDATE pets SET status = :status, updated_at = SYSTIMESTAMP WHERE id = :id",
             {"status": status, "id": pet_id},
         )
 
@@ -142,6 +143,6 @@ def set_photo(conn: oracledb.Connection, pet_id: int, photo_url: str) -> None:
     """Actualiza solo la fotografía, sin tocar el resto de la ficha."""
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE pets SET photo_url = :photo_url WHERE id = :id",
+            "UPDATE pets SET photo_url = :photo_url, updated_at = SYSTIMESTAMP WHERE id = :id",
             {"photo_url": photo_url, "id": pet_id},
         )

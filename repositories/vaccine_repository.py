@@ -119,6 +119,11 @@ def _row_to_vaccine(row: tuple) -> Vaccine:
 
 
 def _row_to_application(row: tuple) -> PetVaccination:
+    # Oracle DATE puede llegar como datetime aunque estos campos representan
+    # únicamente una fecha. Normalizar aquí evita comparaciones incompatibles
+    # (datetime vs date) en las vistas y en el perfil de mascota.
+    expiry_date = row[8].date() if hasattr(row[8], "date") else row[8]
+    next_due_date = row[9].date() if hasattr(row[9], "date") else row[9]
     return PetVaccination(
         id=row[0],
         pet_id=row[1],
@@ -128,8 +133,8 @@ def _row_to_application(row: tuple) -> PetVaccination:
         applied_by=row[5],
         applied_at=row[6],
         lot_number=row[7],
-        expiry_date=row[8],
-        next_due_date=row[9],
+        expiry_date=expiry_date,
+        next_due_date=next_due_date,
         notes=row[10],
         created_at=row[11],
         pet_name=row[12],
