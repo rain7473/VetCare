@@ -15,13 +15,14 @@ import hashlib
 import sys
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from config import settings
 from config.constants import APP_NAME, APP_VERSION
 from database.connection import DatabaseConnectionError
-from utils.icons import icon
+from utils.branding import SYMBOL_LOGO_PATH
 from utils.logging_config import configure_gui_logging
 from views.login.login_window import LoginWindow
 from views.startup.setup_window import SetupWindow
@@ -41,10 +42,15 @@ def load_stylesheet(app: QApplication) -> None:
 
 def create_app(argv: list[str] | None = None) -> QApplication:
     """Construye la aplicación Qt con la identidad VetCare (sin tocar la BD)."""
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("VetCare.Desktop")
     app = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
     app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
-    app.setWindowIcon(icon("pets"))
+    app.setWindowIcon(QIcon(str(SYMBOL_LOGO_PATH)))
     from utils.calendar_style import CalendarStyle
     if not hasattr(app, "_calendar_style"):
         app._calendar_style = CalendarStyle(app)

@@ -6,13 +6,23 @@ variables vive en ``database/connection.py``.
 """
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 # Rutas base del proyecto
-BASE_DIR = Path(__file__).resolve().parent.parent
+# El ejecutable conserva .env y los datos junto a VetCare.exe. Los recursos
+# incluidos por PyInstaller se extraen a _MEIPASS si no hay assets externos.
+BASE_DIR = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent.parent
+)
+_bundled_assets = Path(getattr(sys, "_MEIPASS", BASE_DIR)) / "assets"
 ASSETS_DIR = BASE_DIR / "assets"
+if not ASSETS_DIR.is_dir():
+    ASSETS_DIR = _bundled_assets
 STYLES_FILE = ASSETS_DIR / "styles" / "main.qss"
 
 # Variables de entorno (.env en la raíz del proyecto)

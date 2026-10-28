@@ -9,6 +9,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+VetCare.exe
 .pytest_cache/
 .coverage
 htmlcov/

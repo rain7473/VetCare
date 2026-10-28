@@ -186,14 +186,18 @@ QLabel#sidebarTitle {
     font-size: 21px;
     font-weight: 800;
     background: transparent;
-    padding-left: 6px;
 }
 
 QLabel#sidebarSubtitle {
     color: #9FD4DC;
     font-size: 12px;
     background: transparent;
-    padding-left: 6px;
+}
+
+QLabel#sidebarLogo {
+    background-color: #FFFFFF;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    border-radius: 19px;
 }
 
 QLabel#sidebarFooter {

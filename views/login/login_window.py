@@ -20,7 +20,7 @@ from config.constants import APP_NAME, APP_TAGLINE
 from database.connection import DatabaseConnectionError
 from services import auth_service
 from services.auth_service import AuthenticationError
-from utils.icons import pixmap
+from utils.branding import FULL_LOGO_PATH, scaled_logo
 
 logger = logging.getLogger(__name__)
 
@@ -63,17 +63,11 @@ class LoginWindow(QWidget):
         layout.setSpacing(6)
 
         logo = QLabel()
-        logo.setPixmap(pixmap("pets", 32, "#FFFFFF"))
-        logo.setObjectName("logoBadge")
-        logo.setFixedSize(72, 72)
+        logo.setPixmap(scaled_logo(FULL_LOGO_PATH, 214, 184))
+        logo.setObjectName("loginLogo")
+        logo.setFixedSize(214, 184)
         logo.setAlignment(Qt.AlignCenter)
         layout.addWidget(logo, alignment=Qt.AlignCenter)
-        layout.addSpacing(6)
-
-        title = QLabel(APP_NAME)
-        title.setObjectName("screenTitle")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
 
         subtitle = QLabel("Inicie sesión para continuar")
         subtitle.setObjectName("screenSubtitle")

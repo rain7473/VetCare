@@ -11,7 +11,8 @@ from PySide6.QtWidgets import (
 )
 
 from config.constants import APP_FOOTER_MOTTO, APP_NAME, APP_TAGLINE
-from utils.icons import icon_label, set_button_icon
+from utils.branding import SYMBOL_LOGO_PATH, scaled_logo
+from utils.icons import set_button_icon
 
 # (clave, ícono, etiqueta)
 NAV_ITEMS: list[tuple[str, str, str]] = [
@@ -54,17 +55,28 @@ class Sidebar(QFrame):
         layout.setSpacing(2)
 
         brand = QHBoxLayout()
-        brand.setSpacing(7)
-        brand.addWidget(icon_label("brand", 18, "#FFFFFF"))
+        brand.setSpacing(9)
+
+        logo = QLabel()
+        logo.setObjectName("sidebarLogo")
+        logo.setFixedSize(38, 38)
+        logo.setAlignment(Qt.AlignCenter)
+        logo.setPixmap(scaled_logo(SYMBOL_LOGO_PATH, 32, 32))
+        brand.addWidget(logo, 0, Qt.AlignVCenter)
+
+        identity = QVBoxLayout()
+        identity.setContentsMargins(0, 3, 0, 3)
+        identity.setSpacing(1)
         title = QLabel(APP_NAME)
         title.setObjectName("sidebarTitle")
-        brand.addWidget(title, 1)
-        layout.addLayout(brand)
+        identity.addWidget(title)
 
         subtitle = QLabel(APP_TAGLINE)
         subtitle.setObjectName("sidebarSubtitle")
-        layout.addWidget(subtitle)
-        layout.addSpacing(18)
+        identity.addWidget(subtitle)
+        brand.addLayout(identity, 1)
+        layout.addLayout(brand)
+        layout.addSpacing(14)
 
         group = QButtonGroup(self)
         group.setExclusive(True)

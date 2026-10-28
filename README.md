@@ -66,11 +66,19 @@ python main.py
 ```
 
 El comando anterior es para desarrollo y mantiene visible el terminal desde el
-que se ejecutó. En Windows, el inicio normal se hace con doble clic en
-`launch_vetcare.vbs`: utiliza `pythonw.exe`, no crea una consola y abre login,
-configuración inicial y ventana principal maximizados. `VetCare.pyw` es el
-punto de entrada gráfico equivalente. VetCare permite una sola instancia: un
-segundo doble clic activa la ventana existente sin crear otra.
+que se ejecutó. Para generar el ejecutable con nombre e icono de VetCare:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\scripts\build_executable.ps1
+```
+
+El resultado es `VetCare.exe` en la raíz del proyecto. Mantenga `.env` y la
+carpeta `data` junto a ese ejecutable para conservar la conexión y las fotos.
+En Windows, el inicio normal se hace con doble clic en `launch_vetcare.vbs`:
+abre `VetCare.exe` sin consola; si aún no existe, usa `pythonw.exe` como modo de
+desarrollo. `VetCare.pyw` es el punto de entrada gráfico equivalente. VetCare
+permite una sola instancia: un segundo doble clic activa la ventana existente.
 
 Los mensajes técnicos se guardan en
 `%LOCALAPPDATA%\VetCare\logs\vetcare.log`; no se muestran al usuario final.

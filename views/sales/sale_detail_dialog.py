@@ -19,8 +19,9 @@ from PySide6.QtWidgets import (
 
 from config.constants import APP_FOOTER_MOTTO, APP_NAME, APP_TAGLINE
 from models.sale import PAYMENT_LABELS, STATUS_LABELS, Sale
-from widgets.managed_dialog import ManagedDialog
+from utils.branding import SYMBOL_RESOURCE_URL, add_symbol_resource
 from utils.icons import set_button_icon
+from widgets.managed_dialog import ManagedDialog
 
 
 class SaleDetailDialog(ManagedDialog):
@@ -40,6 +41,7 @@ class SaleDetailDialog(ManagedDialog):
 
         self.preview = QTextBrowser()
         self.preview.setOpenExternalLinks(False)
+        add_symbol_resource(self.preview.document())
         self.preview.setHtml(self._html)
         self.preview.setMinimumWidth(700)
         layout.addWidget(self.preview, stretch=1)
@@ -64,6 +66,7 @@ class SaleDetailDialog(ManagedDialog):
 
     def _document(self, printer: QPrinter) -> QTextDocument:
         document = QTextDocument(self)
+        add_symbol_resource(document)
         document.setHtml(self._html)
         page = printer.pageRect(QPrinter.DevicePixel)
         document.setPageSize(page.size())
@@ -143,7 +146,8 @@ def _invoice_html(sale: Sale) -> str:
 body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #17324d; font-size: 10pt; }}
 table {{ border-collapse: collapse; width: 100%; }}
 .top td {{ vertical-align: top; padding: 5px 4px 14px; }}
-.brand-mark {{ color: #008fa3; font-size: 22pt; font-weight: bold; }}
+.identity td {{ border: none; padding: 0; vertical-align: middle; }}
+.identity .logo-cell {{ width: 58px; padding-right: 9px; }}
 .brand {{ color: #102a43; font-size: 23pt; font-weight: bold; letter-spacing: 1px; }}
 .subtitle {{ color: #6b8194; font-size: 9pt; }}
 .doc-title {{ color: #102a43; font-size: 20pt; font-weight: bold; text-align: right; }}
@@ -168,8 +172,11 @@ table {{ border-collapse: collapse; width: 100%; }}
 .footer {{ color: #8294a1; font-size: 8pt; text-align: center; padding-top: 18px; }}
 </style></head><body>
 <table class="top"><tr>
-<td width="52%"><span class="brand-mark">VC</span>&nbsp;&nbsp;<span class="brand">{escape(APP_NAME)}</span><br>
+<td width="52%"><table class="identity"><tr>
+<td class="logo-cell"><img src="{SYMBOL_RESOURCE_URL.toString()}" width="54" height="52"></td>
+<td><span class="brand">{escape(APP_NAME)}</span><br>
 <span class="subtitle">CLÍNICA VETERINARIA · {escape(APP_TAGLINE)}</span></td>
+</tr></table></td>
 <td width="48%"><div class="doc-title">DETALLE DE VENTA</div><div class="invoice">No. {invoice}</div></td>
 </tr></table>
 <div class="rule"></div>
