@@ -117,6 +117,15 @@ QTableView::item {
     border: none;
 }
 
+/* QCalendarWidget contiene una tabla; las celdas no son filas de CRUD. */
+QCalendarWidget QTableView {
+    background: white; color: #102A43; font-size: 13px;
+    selection-background-color: #008FA3; selection-color: white;
+}
+QCalendarWidget QTableView::item { padding: 0px; margin: 0px; border: none; }
+QCalendarWidget QToolButton { padding: 4px; color: white; background: #006978; }
+QCalendarWidget QWidget#qt_calendar_navigationbar { background: #006978; }
+
 QHeaderView::section {
     background-color: #EEF6F8;
     color: #006978;
@@ -235,12 +244,60 @@ QLineEdit#globalSearch:focus {
     background-color: #FFFFFF;
 }
 
+/* Popups explícitamente claros: no heredan el tema oscuro de Windows. */
+QAbstractItemView#globalSearchPopup {
+    background-color: #FFFFFF;
+    alternate-background-color: #F7FBFC;
+    color: #102A43;
+    border: 1px solid #BFD9E2;
+    border-radius: 8px;
+    outline: 0;
+    selection-background-color: #D3F0F4;
+    selection-color: #006978;
+    padding: 4px;
+}
+
+QAbstractItemView#globalSearchPopup::item {
+    background-color: #FFFFFF;
+    color: #102A43;
+    min-height: 34px;
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+QAbstractItemView#globalSearchPopup::item:hover,
+QAbstractItemView#globalSearchPopup::item:selected {
+    background-color: #D3F0F4;
+    color: #006978;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    alternate-background-color: #F7FBFC;
+    color: #102A43;
+    border: 1px solid #BFD9E2;
+    outline: 0;
+    selection-background-color: #D3F0F4;
+    selection-color: #006978;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 30px;
+    padding: 4px 8px;
+}
+
 QPushButton#notifButton {
     background-color: transparent;
     border: none;
     border-radius: 10px;
     font-size: 16px;
     padding: 0;
+}
+
+QPushButton#notifButton::menu-indicator {
+    image: none;
+    width: 0px;
+    height: 0px;
 }
 
 QPushButton#notifButton:hover {
@@ -306,6 +363,17 @@ QMenu::item {
 QMenu::item:selected {
     background-color: #E6F6F8;
     color: #006978;
+}
+
+QMenu::item:disabled {
+    color: #6B8194;
+    background-color: #FFFFFF;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #E3EEF3;
+    margin: 5px 8px;
 }
 
 QWidget#pageArea {

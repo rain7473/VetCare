@@ -45,6 +45,10 @@ def create_app(argv: list[str] | None = None) -> QApplication:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setWindowIcon(icon("pets"))
+    from utils.calendar_style import CalendarStyle
+    if not hasattr(app, "_calendar_style"):
+        app._calendar_style = CalendarStyle(app)
+        app.installEventFilter(app._calendar_style)
     load_stylesheet(app)
     return app
 

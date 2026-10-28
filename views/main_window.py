@@ -28,20 +28,17 @@ from views.hospitalization.hospitalization_page import HospitalizationPage
 from views.inventory.inventory_page import InventoryPage
 from views.owners.owners_page import OwnersPage
 from views.pets.pets_page import PetsPage
-from views.placeholder_page import PlaceholderPage
 from views.sales.sales_page import SalesPage
 from views.triage.triage_page import TriagePage
 from views.users.users_page import UsersPage
 from views.vaccines.vaccines_page import VaccinesPage
 from widgets.sidebar import Sidebar
 from widgets.topbar import Topbar
+from widgets.global_tools import GlobalTools
+from views.settings_page import SettingsPage
 
 logger = logging.getLogger(__name__)
 
-# Módulos placeholder: clave → (título, objetivo en el que se implementa)
-_PLACEHOLDER_PAGES: dict[str, tuple[str, int | None]] = {
-    "settings": ("Configuración", None),
-}
 
 
 class MainWindow(QMainWindow):
@@ -57,6 +54,12 @@ class MainWindow(QMainWindow):
         self.resize(1366, 768)
         self._page_index: dict[str, int] = {}
         self._build_ui()
+        self.global_tools = GlobalTools(self)
+        self.stack.currentChanged.connect(
+            lambda index: self.global_tools.set_search_enabled(index == self._page_index["dashboard"])
+        )
+        self.global_tools.set_search_enabled(self.stack.currentIndex() == self._page_index["dashboard"])
+        self.logout_requested.connect(self.global_tools.stop)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -113,9 +116,8 @@ class MainWindow(QMainWindow):
             self._add_page("users", UsersPage())
         if "audit" in allowed:
             self._add_page("audit", AuditPage())
-        for key, (title, objective) in _PLACEHOLDER_PAGES.items():
-            if key in allowed:
-                self._add_page(key, PlaceholderPage(title, objective))
+        if "settings" in allowed:
+            self._add_page("settings", SettingsPage())
         right.addWidget(self.stack, stretch=1)
 
         root.addLayout(right, stretch=1)
@@ -134,6 +136,7 @@ class MainWindow(QMainWindow):
         self.stack.widget(self._page_index[key])._on_new()
 
     def closeEvent(self, event):
+        self.global_tools.stop()
         self.stack.widget(self._page_index["dashboard"]).deactivate()
         super().closeEvent(event)
 

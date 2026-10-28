@@ -12,6 +12,19 @@ import oracledb
 CLINIC_NAME_KEY = "CLINIC_NAME"
 
 
+def read_settings(conn):
+    with conn.cursor() as cur:
+        cur.execute("SELECT setting_key, setting_value FROM system_settings")
+        result = {}
+        for key, value in cur.fetchall():
+            if hasattr(value, "read"):
+                value = value.read()
+            if isinstance(value, str):
+                value = json.loads(value)
+            result[key] = value.get("value") if isinstance(value, dict) else value
+        return result
+
+
 def _encode(value: str) -> str:
     return json.dumps({"value": value}, ensure_ascii=False)
 

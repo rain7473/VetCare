@@ -257,13 +257,21 @@ Archivos del rediseño: `models/dashboard.py`, `repositories/dashboard_repositor
 
 ## Limitaciones conocidas
 
-- Configuración permanece como pantalla reservada; los parámetros médicos se
-  administran desde los flujos ya implementados que los necesitan.
-- La búsqueda global y la campana del topbar son elementos visuales; cada módulo
-  dispone de sus propios filtros.
-- No hay notificaciones push ni monitoreo automático. El dashboard consulta
-  en segundo plano al abrirse, cambiar su período o pulsar Actualizar; los demás
-  módulos consultan sus alertas al abrir o actualizar sus pantallas.
+- Configuración permite guardar nombre, teléfono, correo y dirección en
+  SYSTEM_SETTINGS, con auditoría y permiso SETTINGS_MANAGE. Incluye acceso a
+  rangos vitales y preferencias locales de avisos para el usuario actual.
+- La búsqueda de la barra superior aparece únicamente en el Dashboard y ofrece
+  coincidencias debajo del campo mientras se escribe, desde el primer carácter
+  (hasta diez por módulo). Consulta propietarios, mascotas, citas y consultas
+  según permisos. Clic o flechas y Enter abren el identificador exacto. Los demás
+  módulos conservan sus buscadores y filtros propios.
+- La campana revisa automáticamente el resumen de alertas del dashboard cada
+  60 segundos (configurable entre 30 y 3600). Incluye próximas citas, vacunas
+  pendientes, alertas clínicas, stock y vencimientos según permisos. Es un
+  resumen limitado; sus enlaces abren los módulos para consultar todos los
+  registros. Los avisos de escritorio agrupan novedades durante la sesión.
+  Requieren VetCare abierto y notificaciones habilitadas en Windows; no existe
+  un servicio externo para recibir push con la aplicación cerrada.
 - El barcode inicial asume un lector USB que actúa como teclado.
 - El perfil de Mascotas muestra consultas, vacunas y el último peso clínico
   registrado según permisos. El esquema actual no incluye tamaño, notas

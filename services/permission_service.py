@@ -54,10 +54,7 @@ def load_role_permissions(role_id: int) -> frozenset[str]:
         # instalaciones antiguas no tenían esta relación en ROLE_PERMISSIONS;
         # mantenerla aquí permite actualizar el acceso sin bloquear el inicio
         # de sesión ni requerir una migración manual de cada base existente.
-        with conn.cursor() as cur:
-            cur.execute("SELECT name FROM roles WHERE id = :role_id", {"role_id": role_id})
-            row = cur.fetchone()
-        if row and row[0] == "VETERINARIAN":
+        if permission_repository.get_role_name(conn, role_id) == "VETERINARIAN":
             permissions.add("TRIAGE_CREATE")
         return frozenset(permissions)
 

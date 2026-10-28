@@ -13,6 +13,7 @@ import time
 
 
 TEST_MODULES = (
+    "tests.global_tools_test",
     "tests.icons_test",
     "tests.architecture_test",
     "tests.db_health_test",
