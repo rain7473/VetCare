@@ -11,6 +11,7 @@ from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
+    QDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -18,7 +19,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QSplitter,
     QTableView,
     QTextEdit,
     QVBoxLayout,
@@ -34,11 +34,15 @@ from services.sales_service import CartLine, SaleFormData
 from utils.validators import ValidationError
 from views.inventory.inventory_dialogs import ProductDialog
 from views.owners.owner_dialog import OwnerDialog
+from views.sales.sale_detail_dialog import SaleDetailDialog
 from widgets.barcode_scanner import BarcodeScannerInput
 from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
 
-_CART_COLS = ["Producto", "Cant.", "Precio", "Desc.", "Total"]
-_HIST_COLS = ["Factura", "Fecha", "Cliente", "Total", "Pago", "Estado", "Vendedor"]
+_CART_COLS = ["Producto", "Cant.", "Precio", "Desc.", "Total", "Acción"]
+_HIST_COLS = [
+    "Factura", "Fecha", "Cliente", "Total", "Pago", "Estado", "Vendedor",
+    "Detalle",
+]
 
 
 class SalesPage(QWidget):
@@ -67,12 +71,18 @@ class SalesPage(QWidget):
         header.addStretch()
         layout.addLayout(header)
 
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self._build_pos_panel())
-        splitter.addWidget(self._build_history_panel())
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        layout.addWidget(splitter, stretch=1)
+        self.history_panel = self._build_history_panel()
+        self.sale_dialog = QDialog(self)
+        self.sale_dialog.setWindowTitle("Registrar venta")
+        self.sale_dialog.setModal(True)
+        self.sale_dialog.resize(980, 760)
+        self.sale_dialog.setMinimumSize(760, 600)
+        dialog_layout = QVBoxLayout(self.sale_dialog)
+        dialog_layout.setContentsMargins(16, 16, 16, 16)
+        self.pos_panel = self._build_pos_panel()
+        dialog_layout.addWidget(self.pos_panel)
+
+        layout.addWidget(self.history_panel, stretch=1)
 
     def _build_pos_panel(self) -> QWidget:
         panel = QFrame()
@@ -81,7 +91,14 @@ class SalesPage(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
 
-        layout.addWidget(QLabel("Punto de venta"))
+        head = QHBoxLayout()
+        head.addWidget(QLabel("Registrar venta"))
+        head.addStretch()
+        back = QPushButton("Cerrar")
+        back.setProperty("variant", "secondary")
+        back.clicked.connect(self.sale_dialog.accept)
+        head.addWidget(back)
+        layout.addLayout(head)
 
         scan_row = QHBoxLayout()
         self.scanner = BarcodeScannerInput()
@@ -117,16 +134,14 @@ class SalesPage(QWidget):
         self.cart_table.setSelectionBehavior(QTableView.SelectRows)
         self.cart_table.setEditTriggers(QTableView.NoEditTriggers)
         self.cart_table.verticalHeader().setVisible(False)
-        self.cart_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        cart_header = self.cart_table.horizontalHeader()
+        cart_header.setSectionResizeMode(QHeaderView.Stretch)
+        cart_header.setSectionResizeMode(
+            len(_CART_COLS) - 1, QHeaderView.ResizeToContents
+        )
         layout.addWidget(self.cart_table, stretch=1)
 
         cart_actions = QHBoxLayout()
-        remove = QPushButton("Quitar línea")
-        set_button_icon(remove, "delete", color="#008FA3")
-        remove.setProperty("variant", "secondary")
-        remove.clicked.connect(self._on_remove_line)
-        remove.setEnabled(self._can_create)
-        cart_actions.addWidget(remove)
         clear = QPushButton("Vaciar")
         set_button_icon(clear, "delete", color="#008FA3")
         clear.setProperty("variant", "secondary")
@@ -204,8 +219,13 @@ class SalesPage(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
 
         head = QHBoxLayout()
-        head.addWidget(QLabel("Historial reciente"))
+        head.addWidget(QLabel("Historial de ventas"))
         head.addStretch()
+        if self._can_create:
+            add_sale = QPushButton("Agregar venta")
+            set_button_icon(add_sale, "add")
+            add_sale.clicked.connect(self._show_pos)
+            head.addWidget(add_sale)
         refresh = QPushButton("Actualizar")
         set_button_icon(refresh, "refresh", color="#008FA3")
         refresh.setProperty("variant", "secondary")
@@ -220,21 +240,23 @@ class SalesPage(QWidget):
         self.hist_table.setSelectionBehavior(QTableView.SelectRows)
         self.hist_table.setEditTriggers(QTableView.NoEditTriggers)
         self.hist_table.verticalHeader().setVisible(False)
-        self.hist_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        history_header = self.hist_table.horizontalHeader()
+        history_header.setSectionResizeMode(QHeaderView.Stretch)
+        history_header.setSectionResizeMode(
+            len(_HIST_COLS) - 1, QHeaderView.ResizeToContents
+        )
         self.hist_table.doubleClicked.connect(lambda _: self._on_view_sale())
         layout.addWidget(self.hist_table, stretch=1)
-
-        view = QPushButton("Ver detalle")
-        set_button_icon(view, "view", color="#008FA3")
-        view.setProperty("variant", "secondary")
-        view.clicked.connect(self._on_view_sale)
-        layout.addWidget(view)
         return panel
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
         if not self._loaded:
             self.refresh()
+
+    def _show_pos(self) -> None:
+        if self._can_create:
+            self.sale_dialog.exec()
 
     def refresh(self) -> None:
         self.refresh_catalog()
@@ -288,6 +310,11 @@ class SalesPage(QWidget):
         except (PermissionDeniedError, DatabaseConnectionError) as exc:
             QMessageBox.warning(self, "Ventas", str(exc))
             return
+        detail_column = len(_HIST_COLS) - 1
+        for row in range(self.hist_model.rowCount()):
+            self.hist_table.setIndexWidget(
+                self.hist_model.index(row, detail_column), None
+            )
         self.hist_model.setRowCount(0)
         selected_row = None
         for index, sale in enumerate(self._sales):
@@ -302,8 +329,22 @@ class SalesPage(QWidget):
                     QStandardItem(PAYMENT_LABELS.get(sale.payment_method, sale.payment_method)),
                     QStandardItem(STATUS_LABELS.get(sale.status, sale.status)),
                     QStandardItem(sale.sold_by_name or "—"),
+                    QStandardItem(),
                 ]
             )
+            detail_button = QPushButton("Ver")
+            set_button_icon(detail_button, "view", color="#008FA3")
+            detail_button.setProperty("variant", "secondary")
+            detail_button.setStyleSheet("padding: 3px 8px; border-radius: 6px;")
+            detail_button.setFixedHeight(30)
+            detail_button.setToolTip("Ver detalle de la venta")
+            detail_button.clicked.connect(
+                lambda _checked=False, sale_id=sale.id: self._show_sale_detail(sale_id)
+            )
+            self.hist_table.setIndexWidget(
+                self.hist_model.index(index, detail_column), detail_button
+            )
+            self.hist_table.setRowHeight(index, 36)
             if sale.id == selected_id:
                 selected_row = index
         if selected_row is not None:
@@ -367,11 +408,10 @@ class SalesPage(QWidget):
         )
         self._render_cart()
 
-    def _on_remove_line(self) -> None:
-        indexes = self.cart_table.selectionModel().selectedRows()
-        if not indexes:
+    def _remove_cart_line(self, row: int) -> None:
+        if not 0 <= row < len(self._cart):
             return
-        del self._cart[indexes[0].row()]
+        del self._cart[row]
         self._render_cart()
 
     def _clear_cart(self) -> None:
@@ -382,8 +422,13 @@ class SalesPage(QWidget):
         self._render_cart()
 
     def _render_cart(self) -> None:
+        action_column = len(_CART_COLS) - 1
+        for row in range(self.cart_model.rowCount()):
+            self.cart_table.setIndexWidget(
+                self.cart_model.index(row, action_column), None
+            )
         self.cart_model.setRowCount(0)
-        for row in self._cart:
+        for index, row in enumerate(self._cart):
             product: Product = row["product"]
             qty: Decimal = row["qty"]
             price: Decimal = row["unit_price"]
@@ -396,8 +441,23 @@ class SalesPage(QWidget):
                     QStandardItem(f"${price:.2f}"),
                     QStandardItem(f"${disc:.2f}"),
                     QStandardItem(f"${total:.2f}"),
+                    QStandardItem(),
                 ]
             )
+            remove_button = QPushButton("Quitar")
+            set_button_icon(remove_button, "delete", color="#008FA3")
+            remove_button.setProperty("variant", "secondary")
+            remove_button.setStyleSheet("padding: 3px 8px; border-radius: 6px;")
+            remove_button.setFixedHeight(30)
+            remove_button.setToolTip(f"Quitar {product.name} de la venta")
+            remove_button.setEnabled(self._can_create)
+            remove_button.clicked.connect(
+                lambda _checked=False, row_index=index: self._remove_cart_line(row_index)
+            )
+            self.cart_table.setIndexWidget(
+                self.cart_model.index(index, action_column), remove_button
+            )
+            self.cart_table.setRowHeight(index, 36)
         self._refresh_totals()
 
     def _cart_subtotal(self) -> Decimal:
@@ -447,6 +507,7 @@ class SalesPage(QWidget):
         self._clear_cart()
         self.refresh_catalog()
         self.refresh_history(selected_id=sale_id)
+        self.sale_dialog.accept()
         sale = next((item for item in self._sales if item.id == sale_id), None)
         invoice = sale.invoice_number if sale else str(sale_id)
         QMessageBox.information(
@@ -473,25 +534,14 @@ class SalesPage(QWidget):
             QMessageBox.information(self, "Ventas", "Seleccione una venta.")
             return
         sale = self._sales[indexes[0].row()]
+        self._show_sale_detail(sale.id)
+
+    def _show_sale_detail(self, sale_id: int) -> None:
         try:
-            detail = sales_service.get_sale(sale.id)
+            detail = sales_service.get_sale(sale_id)
         except (PermissionDeniedError, DatabaseConnectionError) as exc:
             QMessageBox.warning(self, "Ventas", str(exc))
             return
         if detail is None:
             return
-        lines = "\n".join(
-            f"• {i.product_name} × {i.quantity:g} = ${i.line_total or 0:.2f}"
-            for i in detail.items
-        ) or "(sin líneas)"
-        QMessageBox.information(
-            self,
-            detail.invoice_number,
-            (
-                f"Cliente: {detail.owner_name or 'Mostrador'}\n"
-                f"Total: ${detail.total:.2f}\n"
-                f"Pago: {PAYMENT_LABELS.get(detail.payment_method, detail.payment_method)}\n"
-                f"Estado: {STATUS_LABELS.get(detail.status, detail.status)}\n\n"
-                f"{lines}"
-            ),
-        )
+        SaleDetailDialog(detail, parent=self).exec()
