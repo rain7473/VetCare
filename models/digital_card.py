@@ -14,3 +14,6 @@ class PetDigitalCard:
     is_active: bool
     created_by: int | None
     pet_name: str | None = None
+    public_pdf_url: str | None = None
+    pdf_published_at: datetime | None = None
+    pdf_upload_status: str = "NOT_PUBLISHED"

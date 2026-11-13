@@ -33,6 +33,7 @@ TEST_MODULES = (
     "tests.monitoring_test",
     "tests.integrity_test",
     "tests.digital_card_test",
+    "tests.qurl_test",
     "tests.inventory_test",
     "tests.barcode_test",
     "tests.dynamic_selector_test",

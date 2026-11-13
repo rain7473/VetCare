@@ -170,5 +170,5 @@ interfaz. La aplicación debe respetar las garantías de Oracle.
 - No use `except: pass` ni muestre trazas al usuario final.
 - Las contraseñas funcionales se procesan con bcrypt.
 - `.env` no se versiona y `.env.example` mantiene `DB_PASSWORD=` vacío.
-- El QR del carné no contiene información clínica.
+- El QR del carné publicado contiene el enlace público de descarga de qurl.sh; el PDF contiene los datos básicos y vacunas mostrados al publicar.
 

@@ -1,7 +1,11 @@
 """Diálogo del carné digital de la mascota."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from pathlib import Path
+from tempfile import gettempdir
+import logging
+
+from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, Signal, Slot, QUrl
+from PySide6.QtGui import QPixmap, QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
@@ -10,17 +14,40 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
+    QFileDialog,
+    QApplication,
 )
 
 from config.constants import PET_SEX_DISPLAY, APP_NAME
 from database.connection import DatabaseConnectionError
 from services import digital_card_service, permission_service
+from services.qurl_service import upload_pdf
 from services.permission_service import PermissionDeniedError
 from utils.images import resolve_photo
 from utils.icons import pixmap as icon_pixmap, set_button_icon
 from utils.qr import make_qr_pixmap
+from utils.pet_card_pdf import export_card_pdf
 from utils.validators import ValidationError
 from widgets.managed_dialog import ManagedDialog
+
+logger = logging.getLogger(__name__)
+
+class _UploadSignals(QObject):
+    finished = Signal(str, str)
+
+
+class _UploadJob(QRunnable):
+    def __init__(self, path: str) -> None:
+        super().__init__()
+        self.signals = _UploadSignals()
+        self.path = path
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.signals.finished.emit(upload_pdf(self.path), "")
+        except Exception as exc:
+            self.signals.finished.emit("", str(exc))
 
 
 class DigitalCardDialog(ManagedDialog):
@@ -29,6 +56,8 @@ class DigitalCardDialog(ManagedDialog):
     def __init__(self, pet_id: int, parent=None) -> None:
         super().__init__(parent)
         self._pet_id = pet_id
+        self._view = None
+        self._upload_job = None
         self.setWindowTitle(f"{APP_NAME} — Carné digital")
         self.setMinimumWidth(520)
         self._build_ui()
@@ -61,6 +90,7 @@ class DigitalCardDialog(ManagedDialog):
         self.qr_label = QLabel()
         self.qr_label.setFixedSize(160, 160)
         self.qr_label.setAlignment(Qt.AlignCenter)
+        self.qr_label.setScaledContents(True)
         top.addWidget(self.qr_label)
         layout.addLayout(top)
 
@@ -80,12 +110,21 @@ class DigitalCardDialog(ManagedDialog):
             form.addRow(f"{title}:", value)
         layout.addLayout(form)
 
-        note = QLabel(
-            "El QR solo contiene el token público. No incluye información clínica."
-        )
-        note.setObjectName("versionLabel")
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        self.upload_button = QPushButton("Publicar carné y generar QR")
+        self.upload_button.clicked.connect(self._publish)
+        self.upload_button.setEnabled(permission_service.has_permission("PETS_WRITE"))
+        layout.addWidget(self.upload_button)
+        links = QHBoxLayout()
+        self.copy_button = QPushButton("Copiar enlace")
+        self.copy_button.clicked.connect(self._copy_link)
+        self.open_button = QPushButton("Abrir PDF en navegador")
+        self.open_button.clicked.connect(self._open_pdf)
+        self.save_qr_button = QPushButton("Descargar QR")
+        self.save_qr_button.clicked.connect(self._save_qr)
+        for button in (self.copy_button, self.open_button, self.save_qr_button):
+            button.setEnabled(False)
+            links.addWidget(button)
+        layout.addLayout(links)
 
         buttons = QHBoxLayout()
         buttons.addStretch()
@@ -142,7 +181,67 @@ class DigitalCardDialog(ManagedDialog):
         else:
             self.detail_labels["vaccines"].setText("Sin vacunas registradas")
 
-        self.qr_label.setPixmap(make_qr_pixmap(view.qr_payload))
+        self._view = view
+        self.qr_label.setPixmap(make_qr_pixmap(view.qr_payload) if view.card.public_pdf_url else QPixmap())
+        published = bool(view.card.public_pdf_url)
+        for button in (self.copy_button, self.open_button, self.save_qr_button):
+            button.setEnabled(published)
+        self.upload_button.setText("Publicar PDF actualizado y renovar QR" if published else "Publicar carné y generar QR")
+
+    def _pdf_path(self) -> str:
+        view = self._view
+        path = Path(gettempdir()) / f"vetcare_carnet_{view.card.id}.pdf"
+        export_card_pdf(view, path)
+        return str(path)
+
+    def _publish(self) -> None:
+        if not self._view:
+            return
+        answer = QMessageBox.question(self, "Publicar carné", "El enlace directo será público y caducará en 7 días o tras 100 accesos. ¿Confirmas que los datos son ficticios o están autorizados para publicarse?", QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            path = self._pdf_path()
+        except OSError as exc:
+            QMessageBox.warning(self, "Carné PDF", str(exc))
+            return
+        job = _UploadJob(path)
+        self._upload_job = job
+        job.signals.finished.connect(self._upload_finished)
+        self.upload_button.setEnabled(False)
+        self.upload_button.setText("Publicando…")
+        QThreadPool.globalInstance().start(job)
+
+    @Slot(str, str)
+    def _upload_finished(self, url: str, error: str) -> None:
+        self.upload_button.setEnabled(True)
+        if error:
+            try:
+                digital_card_service.mark_upload_failed(self._view.card.id)
+            except Exception:
+                logger.exception("No se pudo guardar el estado de la publicación")
+            self.upload_button.setText("Reintentar publicación")
+            QMessageBox.warning(self, "Publicación fallida", f"El PDF local se conservó. Puedes reintentar.\n{error}")
+            return
+        try:
+            digital_card_service.publish_pdf(self._view.card.id, url)
+        except Exception as exc:
+            self.upload_button.setText("Reintentar publicación")
+            QMessageBox.warning(self, "No se pudo guardar", f"El PDF se publicó, pero Oracle no guardó el enlace. El PDF local se conservó.\nEnlace: {url}\n{exc}")
+            return
+        QMessageBox.information(self, "Publicado", "Carné publicado y QR actualizado.")
+        self._load()
+
+    def _copy_link(self) -> None:
+        QApplication.clipboard().setText(self._view.card.public_pdf_url or "")
+
+    def _open_pdf(self) -> None:
+        QDesktopServices.openUrl(QUrl(self._view.card.public_pdf_url or ""))
+
+    def _save_qr(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "Guardar código QR", f"carnet_{self._view.pet.name}.png", "Imagen PNG (*.png)")
+        if path:
+            self.qr_label.pixmap().save(path, "PNG")
 
     def _on_reissue(self) -> None:
         if QMessageBox.question(

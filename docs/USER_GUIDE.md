@@ -73,9 +73,7 @@ configurados para la especie. Pueden pasar de `OPEN` a `ACKNOWLEDGED` y luego a
 
 ## Carné digital
 
-Desde la ficha de mascota abra el carné digital. El QR contiene únicamente un
-token público con formato `vetcare:pet:<hex>`; no contiene diagnósticos,
-alergias ni otros datos clínicos. Reemitir el carné invalida el token anterior.
+Desde la ficha de mascota abra el carné digital y seleccione «Publicar carné y generar QR». Confirme que los datos son ficticios o están autorizados para difusión. El QR abre directamente el PDF público en qurl.sh; el enlace caduca tras siete días o cien accesos. Cada publicación genera un enlace nuevo y los enlaces anteriores pueden seguir disponibles hasta su caducidad.
 
 ## Inventario y barcode
 

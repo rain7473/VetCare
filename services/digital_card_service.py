@@ -52,7 +52,7 @@ def get_or_issue_card(pet_id: int) -> DigitalCardView:
         return DigitalCardView(
             pet=pet,
             card=card,
-            qr_payload=card_payload(card.public_token_hex),
+            qr_payload=card.public_pdf_url or card_payload(card.public_token_hex),
             vaccines=vaccines,
         )
 
@@ -76,6 +76,21 @@ def reissue_card(pet_id: int) -> DigitalCardView:
         return DigitalCardView(
             pet=pet,
             card=card,
-            qr_payload=card_payload(card.public_token_hex),
+            qr_payload=card.public_pdf_url or card_payload(card.public_token_hex),
             vaccines=vaccines,
         )
+
+
+def publish_pdf(card_id: int, url: str) -> None:
+    permission_service.require_permission("PETS_WRITE")
+    from services.qurl_service import valid_pdf_url
+    if not valid_pdf_url(url):
+        raise ValidationError("El enlace público no es un PDF válido de qurl.sh.")
+    with connection_scope(commit=True) as conn:
+        digital_card_repository.save_public_pdf(conn, card_id, url)
+
+
+def mark_upload_failed(card_id: int) -> None:
+    permission_service.require_permission("PETS_WRITE")
+    with connection_scope(commit=True) as conn:
+        digital_card_repository.set_upload_failed(conn, card_id)

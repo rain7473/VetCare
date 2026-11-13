@@ -254,7 +254,8 @@ Archivos del rediseño: `models/dashboard.py`, `repositories/dashboard_repositor
 - Un registro sellado no se edita; las correcciones van a
   `CLINICAL_AMENDMENTS`.
 - `AUDIT_LOG` y las enmiendas están protegidos contra UPDATE/DELETE.
-- El QR contiene `vetcare:pet:<hex>` y no incluye datos clínicos sensibles.
+- El QR publicado abre el PDF directamente desde qurl.sh. Publique solo datos ficticios o autorizados. El enlace caduca a los 7 días o tras 100 accesos; cada publicación genera uno nuevo.
+- En otros esquemas Oracle, ejecute como `VETCARE` el script `database/migrations/20261110_pet_card_public_pdf.sql` mediante SQL*Plus o SQL Developer.
 - Movimientos válidos: `ENTRY`, `SALE`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`,
   `EXPIRED`, `RETURN_IN`, `RETURN_OUT`.
 

@@ -109,6 +109,14 @@ def run() -> int:
             active = digital_card_repository.get_active_for_pet(conn, pet_id)
             results["Carné activo"] = active is not None and active.id == card.id
 
+            digital_card_repository.save_public_pdf(conn, card.id, "https://gofile.io/d/Demo1234")
+            active = digital_card_repository.get_active_for_pet(conn, pet_id)
+            results["Enlace y fecha de publicación guardados"] = (
+                active.public_pdf_url == "https://gofile.io/d/Demo1234"
+                and active.pdf_published_at is not None
+                and active.pdf_upload_status == "PUBLISHED"
+            )
+
             digital_card_repository.deactivate_for_pet(conn, pet_id)
             card2 = digital_card_repository.insert_card(
                 conn, pet_id=pet_id, created_by=user_id

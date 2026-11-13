@@ -12,7 +12,8 @@ def get_active_for_pet(
         cur.execute(
             """
             SELECT c.id, c.pet_id, RAWTOHEX(c.public_token), c.issued_at,
-                   c.expires_at, c.is_active, c.created_by, p.name
+                   c.expires_at, c.is_active, c.created_by, p.name,
+                   c.public_pdf_url, c.pdf_published_at, c.pdf_upload_status
             FROM pet_digital_cards c
             JOIN pets p ON p.id = c.pet_id
             WHERE c.pet_id = :pet_id AND c.is_active = 1
@@ -65,7 +66,8 @@ def insert_card(
         cur.execute(
             """
             SELECT c.id, c.pet_id, RAWTOHEX(c.public_token), c.issued_at,
-                   c.expires_at, c.is_active, c.created_by, p.name
+                   c.expires_at, c.is_active, c.created_by, p.name,
+                   c.public_pdf_url, c.pdf_published_at, c.pdf_upload_status
             FROM pet_digital_cards c
             JOIN pets p ON p.id = c.pet_id
             WHERE c.id = :id
@@ -86,4 +88,28 @@ def _row_to_card(row: tuple) -> PetDigitalCard:
         is_active=bool(row[5]),
         created_by=row[6],
         pet_name=row[7],
+        public_pdf_url=row[8],
+        pdf_published_at=row[9],
+        pdf_upload_status=row[10] or "NOT_PUBLISHED",
     )
+
+
+def save_public_pdf(conn: oracledb.Connection, card_id: int, url: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """UPDATE pet_digital_cards
+               SET public_pdf_url = :url, pdf_published_at = SYSTIMESTAMP,
+                   pdf_upload_status = 'PUBLISHED'
+               WHERE id = :id AND is_active = 1""",
+            {"url": url, "id": card_id},
+        )
+        if cur.rowcount != 1:
+            raise ValueError("El carné dejó de estar activo durante la publicación.")
+
+
+def set_upload_failed(conn: oracledb.Connection, card_id: int) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE pet_digital_cards SET pdf_upload_status = 'FAILED' WHERE id = :id AND is_active = 1",
+            {"id": card_id},
+        )
