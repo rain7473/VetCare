@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from uuid import uuid4
 
-from utils.icons import set_button_icon
+from utils.icons import set_button_icon, icon_label
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QStandardItem, QStandardItemModel, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -57,6 +58,8 @@ class SalesPage(QWidget):
         self._owners: list[tuple[int | None, str]] = [(None, "— Mostrador —")]
         self._sales: list[Sale] = []
         self._loaded = False
+        self._confirming = False
+        self._request_key = uuid4().hex
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -81,6 +84,12 @@ class SalesPage(QWidget):
         dialog_layout.setContentsMargins(16, 16, 16, 16)
         self.pos_panel = self._build_pos_panel()
         dialog_layout.addWidget(self.pos_panel)
+        for button in self.sale_dialog.findChildren(QPushButton):
+            button.setAutoDefault(False)
+        self.confirm_shortcut = QShortcut(QKeySequence("F4"), self.sale_dialog)
+        self.confirm_shortcut.activated.connect(self._on_confirm)
+        self.scanner_shortcut = QShortcut(QKeySequence("F2"), self.sale_dialog)
+        self.scanner_shortcut.activated.connect(self.scanner.setFocus)
 
         layout.addWidget(self.history_panel, stretch=1)
 
@@ -101,11 +110,13 @@ class SalesPage(QWidget):
         layout.addLayout(head)
 
         scan_row = QHBoxLayout()
+        scan_row.addWidget(icon_label("barcode"))
         self.scanner = BarcodeScannerInput()
-        self.scanner.setPlaceholderText("Escanear producto…")
         self.scanner.scanned.connect(self._on_scan)
         self.scanner.setEnabled(self._can_create)
         scan_row.addWidget(self.scanner, stretch=1)
+        layout.addLayout(scan_row)
+        manual_row = QHBoxLayout()
 
         self.product_selector = DynamicEntitySelector(
             placeholder="Buscar producto, SKU o código…",
@@ -118,14 +129,17 @@ class SalesPage(QWidget):
             else "Sin permiso para crear productos",
         )
         self.product_selector.add_requested.connect(self._create_product)
-        scan_row.addWidget(self.product_selector, stretch=1)
+        manual_row.addWidget(self.product_selector, stretch=1)
 
         add_btn = QPushButton("Agregar")
         set_button_icon(add_btn, "add")
         add_btn.clicked.connect(self._on_add_selected)
         add_btn.setEnabled(self._can_create)
-        scan_row.addWidget(add_btn)
-        layout.addLayout(scan_row)
+        manual_row.addWidget(add_btn)
+        layout.addLayout(manual_row)
+        self.scan_status = QLabel("Escanee y pulse Enter · F2: lector · F4: confirmar venta")
+        self.scan_status.setWordWrap(True)
+        layout.addWidget(self.scan_status)
 
         self.cart_model = QStandardItemModel(0, len(_CART_COLS))
         self.cart_model.setHorizontalHeaderLabels(_CART_COLS)
@@ -136,9 +150,8 @@ class SalesPage(QWidget):
         self.cart_table.verticalHeader().setVisible(False)
         cart_header = self.cart_table.horizontalHeader()
         cart_header.setSectionResizeMode(QHeaderView.Stretch)
-        cart_header.setSectionResizeMode(
-            len(_CART_COLS) - 1, QHeaderView.ResizeToContents
-        )
+        for column in range(1, len(_CART_COLS)):
+            cart_header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         layout.addWidget(self.cart_table, stretch=1)
 
         cart_actions = QHBoxLayout()
@@ -199,11 +212,11 @@ class SalesPage(QWidget):
         self.totals_label.setObjectName("pageTitle")
         layout.addWidget(self.totals_label)
 
-        confirm = QPushButton("Confirmar venta")
-        set_button_icon(confirm, "sales")
-        confirm.clicked.connect(self._on_confirm)
-        confirm.setEnabled(self._can_create)
-        layout.addWidget(confirm)
+        self.confirm_button = QPushButton("Confirmar venta (F4)")
+        set_button_icon(self.confirm_button, "sales")
+        self.confirm_button.clicked.connect(self._on_confirm)
+        self.confirm_button.setEnabled(self._can_create)
+        layout.addWidget(self.confirm_button)
 
         if not self._can_create:
             hint = QLabel("Solo lectura: su rol puede consultar ventas, no crearlas.")
@@ -256,6 +269,8 @@ class SalesPage(QWidget):
 
     def _show_pos(self) -> None:
         if self._can_create:
+            self.refresh_catalog()
+            QTimer.singleShot(0, self.scanner.setFocus)
             self.sale_dialog.exec()
 
     def refresh(self) -> None:
@@ -358,15 +373,15 @@ class SalesPage(QWidget):
         return None
 
     def _on_scan(self, code: str) -> None:
+        if not self._can_create or self._confirming:
+            return
         try:
             product = inventory_service.find_by_barcode(code)
         except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
-            QMessageBox.warning(self, "Escáner", str(exc))
+            self._scan_message(str(exc), error=True)
             return
         if product is None:
-            QMessageBox.information(
-                self, "Escáner", f"No se encontró el código «{code}»."
-            )
+            self._scan_message(f"No se encontró el código «{code}».", error=True)
             return
         self._add_product(product)
 
@@ -379,24 +394,24 @@ class SalesPage(QWidget):
         self._add_product(product)
 
     def _add_product(self, product: Product) -> None:
-        if product.stock_available <= 0:
-            QMessageBox.warning(
-                self, "Ventas", f"«{product.name}» no tiene stock disponible."
-            )
+        if not self._can_create or self._confirming:
+            return
+        if product.stock_available < 1:
+            self._scan_message(f"«{product.name}» no tiene una unidad disponible.", error=True)
             return
         for row in self._cart:
             if row["product"].id == product.id:
                 new_qty = row["qty"] + Decimal("1")
                 if new_qty > product.stock_available:
-                    QMessageBox.warning(
-                        self,
-                        "Ventas",
+                    self._scan_message(
                         f"Stock insuficiente de «{product.name}» "
-                        f"(disponible {product.stock_available:g}).",
+                        f"(disponible {product.stock_available:g}).", error=True,
                     )
                     return
                 row["qty"] = new_qty
+                row["product"] = product
                 self._render_cart()
+                self._scan_message(f"{product.name} · cantidad {new_qty:g}")
                 return
         self._cart.append(
             {
@@ -407,6 +422,12 @@ class SalesPage(QWidget):
             }
         )
         self._render_cart()
+        self._scan_message(f"Agregado: {product.name} · cantidad 1")
+
+    def _scan_message(self, text: str, *, error: bool = False) -> None:
+        self.scan_status.setText(text)
+        self.scan_status.setStyleSheet("color: #DC2626;" if error else "color: #00805A;")
+        self.scanner.setFocus(Qt.OtherFocusReason)
 
     def _remove_cart_line(self, row: int) -> None:
         if not 0 <= row < len(self._cart):
@@ -415,6 +436,7 @@ class SalesPage(QWidget):
         self._render_cart()
 
     def _clear_cart(self) -> None:
+        self._request_key = uuid4().hex
         self._cart.clear()
         self.discount_input.setValue(0)
         self.tax_input.setValue(0)
@@ -476,6 +498,8 @@ class SalesPage(QWidget):
         )
 
     def _on_confirm(self) -> None:
+        if self._confirming or not self._can_create:
+            return
         if not self._cart:
             QMessageBox.information(self, "Ventas", "El carrito está vacío.")
             return
@@ -489,30 +513,30 @@ class SalesPage(QWidget):
             for row in self._cart
         )
         data = SaleFormData(
-                owner_id=self.owner_selector.current_id(),
+            owner_id=self.owner_selector.current_id(),
             payment_method=self.payment_combo.currentData(),
             discount_amount=str(self.discount_input.value()),
             tax_amount=str(self.tax_input.value()),
             notes=self.notes_input.toPlainText(),
             lines=lines,
+            request_key=self._request_key,
         )
+        self._confirming = True
+        self.confirm_button.setEnabled(False)
         try:
             sale_id = sales_service.complete_sale(data)
-        except ValidationError as exc:
-            QMessageBox.warning(self, "Ventas", str(exc))
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
+            self._scan_message(str(exc), error=True)
             return
-        except (PermissionDeniedError, DatabaseConnectionError) as exc:
-            QMessageBox.warning(self, "Ventas", str(exc))
-            return
+        finally:
+            self._confirming = False
+            self.confirm_button.setEnabled(self._can_create)
         self._clear_cart()
         self.refresh_catalog()
         self.refresh_history(selected_id=sale_id)
-        self.sale_dialog.accept()
         sale = next((item for item in self._sales if item.id == sale_id), None)
         invoice = sale.invoice_number if sale else str(sale_id)
-        QMessageBox.information(
-            self, "Venta registrada", f"Venta completada.\nFactura: {invoice}"
-        )
+        self._scan_message(f"Venta completada · Factura: {invoice}. Listo para la siguiente venta.")
 
     def _create_product(self) -> None:
         dialog = ProductDialog(parent=self)

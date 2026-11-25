@@ -128,6 +128,22 @@ def next_invoice_number(conn: oracledb.Connection, when: datetime) -> str:
     return f"{prefix}{last + 1:04d}"
 
 
+def lock_checkout(conn: oracledb.Connection) -> None:
+    # Serializa confirmaciones, conservando la numeración diaria MAX + 1.
+    # No bloquea consultas; Oracle libera el bloqueo al COMMIT/ROLLBACK.
+    with conn.cursor() as cur:
+        cur.execute("LOCK TABLE sales IN EXCLUSIVE MODE WAIT 10")
+
+
+def find_request(conn: oracledb.Connection, request_key: str) -> tuple | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, request_hash, sold_by FROM sales WHERE request_key = :key",
+            {"key": request_key},
+        )
+        return cur.fetchone()
+
+
 def insert_sale(
     conn: oracledb.Connection,
     *,
@@ -141,6 +157,8 @@ def insert_sale(
     payment_method: str,
     status: str,
     notes: str | None,
+    request_key: str | None = None,
+    request_hash: str | None = None,
 ) -> int:
     with conn.cursor() as cur:
         new_id = cur.var(oracledb.DB_TYPE_NUMBER)
@@ -149,11 +167,11 @@ def insert_sale(
             INSERT INTO sales (
                 invoice_number, owner_id, sold_by,
                 subtotal, discount_amount, tax_amount, total,
-                payment_method, status, notes, sold_at
+                payment_method, status, notes, sold_at, request_key, request_hash
             ) VALUES (
                 :invoice_number, :owner_id, :sold_by,
                 :subtotal, :discount_amount, :tax_amount, :total,
-                :payment_method, :status, :notes, SYSTIMESTAMP
+                :payment_method, :status, :notes, SYSTIMESTAMP, :request_key, :request_hash
             )
             RETURNING id INTO :new_id
             """,
@@ -168,6 +186,8 @@ def insert_sale(
                 "payment_method": payment_method,
                 "status": status,
                 "notes": notes,
+                "request_key": request_key,
+                "request_hash": request_hash,
                 "new_id": new_id,
             },
         )

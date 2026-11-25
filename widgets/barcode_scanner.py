@@ -2,12 +2,10 @@
 
 Los lectores tipo *keyboard wedge* escriben los dígitos/caracteres
 rápidamente y terminan con Enter. Este widget emite ``scanned`` con el
-código limpio al confirmar (Return) o al detectar un barrido rápido.
+código limpio únicamente al confirmar con Enter o Return.
 """
 
 from __future__ import annotations
-
-import time
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent
@@ -24,29 +22,31 @@ class BarcodeScannerInput(QLineEdit):
 
     scanned = Signal(str)
 
-    # Umbral: si llegan varios caracteres en menos de este intervalo (ms)
-    # se considera barrido de escáner (informativo; Enter sigue siendo
-    # la confirmación principal).
-    _RAPID_MS = 80
-
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setPlaceholderText("Escanear código de barras…")
+        self.setPlaceholderText("Escanear o ingresar código")
         self.setClearButtonEnabled(True)
-        self._last_key_at = 0.0
+        self._processing = False
         self.returnPressed.connect(self._emit_scan)
 
     def _emit_scan(self) -> None:
         code = self.text().strip()
-        if not code:
+        if not code or self._processing:
             return
-        self.scanned.emit(code)
+        self._processing = True
+        # Vaciar antes de emitir: Enter repetido o reentrada no repiten la lectura.
         self.clear()
-        self.setFocus(Qt.OtherFocusReason)
+        try:
+            self.scanned.emit(code)
+        finally:
+            self._processing = False
+            self.setFocus(Qt.OtherFocusReason)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        now = time.monotonic() * 1000
-        # Conservar comportamiento estándar; solo rastrear velocidad.
-        if event.text() and not event.modifiers() & Qt.ControlModifier:
-            self._last_key_at = now
+        # Consumir Enter impide que active también el botón predeterminado del diálogo.
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if not event.isAutoRepeat():
+                self._emit_scan()
+            event.accept()
+            return
         super().keyPressEvent(event)

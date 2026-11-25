@@ -704,3 +704,20 @@ QLabel#versionLabel {
     font-size: 12px;
     background: transparent;
 }
+
+/* Ficha de producto */
+QFrame#productDetailIcon { background: #E1F5F5; border-radius: 14px; }
+QLabel#productDetailEyebrow { color: #6B8194; font-size: 11px; font-weight: 700; background: transparent; }
+QLabel#productDetailTitle { color: #102A43; font-size: 22px; font-weight: 700; background: transparent; }
+QLabel#productDetailMuted { color: #6B8194; font-size: 12px; background: transparent; }
+QLabel#productDetailStatus { background: #DDF5E9; color: #157954; border-radius: 10px; padding: 5px 11px; font-size: 12px; font-weight: 700; }
+QLabel#productDetailStatus[active="false"] { background: #EAF0F3; color: #6B8194; }
+QScrollArea#productDetailScroll, QWidget#productDetailContent { background: transparent; border: none; }
+QFrame#productDetailMetric { background: #FFFFFF; border: 1px solid #E3EEF3; border-radius: 14px; }
+QLabel#productDetailMetricValue { color: #006978; font-size: 21px; font-weight: 700; background: transparent; }
+QLabel#productDetailWarning { color: #B36C0A; font-size: 12px; font-weight: 700; background: transparent; }
+QLabel#productDetailSection { color: #102A43; font-size: 15px; font-weight: 700; background: transparent; }
+QLabel#productDetailValue { color: #102A43; font-size: 14px; font-weight: 600; background: transparent; }
+QLabel#productDetailDescription { color: #526B7D; background: #FFFFFF; border: 1px solid #E3EEF3; border-radius: 12px; padding: 12px; }
+
+QFrame#productDetailBarcode { background: #FFFFFF; border: 1px solid #E3EEF3; border-radius: 12px; }

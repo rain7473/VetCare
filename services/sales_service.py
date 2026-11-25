@@ -11,13 +11,17 @@ Flujo (una sola transacción Oracle):
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import hashlib
+import json
+import re
+from uuid import uuid4
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 import oracledb
 
-from database.connection import connection_scope
+from database.connection import connection_scope, DatabaseConnectionError
 from models.sale import PAYMENT_METHODS, Sale
 from repositories import (
     audit_repository,
@@ -51,6 +55,7 @@ class SaleFormData:
     tax_amount: str
     notes: str
     lines: tuple[CartLine, ...]
+    request_key: str = field(default_factory=lambda: uuid4().hex)
 
 
 def _money(value: Decimal) -> Decimal:
@@ -65,6 +70,8 @@ def _parse_money(raw: str, label: str, *, allow_zero: bool = True) -> Decimal:
         value = Decimal(text)
     except InvalidOperation as exc:
         raise ValidationError(f"{label} no es un número válido.") from exc
+    if not value.is_finite():
+        raise ValidationError(f"{label} no es un número válido.")
     if value < 0:
         raise ValidationError(f"{label} no puede ser negativo.")
     if not allow_zero and value == 0:
@@ -101,23 +108,23 @@ def _visible_seller_id() -> int | None:
 def complete_sale(data: SaleFormData) -> int:
     """Registra una venta COMPLETED y descuenta inventario de forma atómica."""
     permission_service.require_permission("SALES_CREATE")
-    with connection_scope(commit=True) as conn:
-        sale_id = _complete_sale(conn, data)
-        sale = sales_repository.get_sale(conn, sale_id)
-        current = session.get_current_user()
-        audit_repository.insert_event(
-            conn,
-            user_id=current.id if current else None,
-            entity_type="SALE",
-            entity_id=sale_id,
-            action="COMPLETE",
-            new_data={
-                "invoice_number": sale.invoice_number if sale else None,
-                "total": str(sale.total) if sale else None,
-                "payment_method": sale.payment_method if sale else data.payment_method,
-            },
-        )
-        return sale_id
+    try:
+        with connection_scope(commit=True) as conn:
+            return _complete_sale(conn, data)
+    except oracledb.DatabaseError as exc:
+        logger.exception("No se pudo confirmar la venta %s", data.request_key)
+        raise DatabaseConnectionError(
+            "No se pudo confirmar la venta. Reintente con el mismo carrito; "
+            "una confirmación ya registrada no descontará stock otra vez."
+        ) from exc
+
+
+def _request_hash(data: SaleFormData) -> str:
+    payload = [data.owner_id, data.payment_method, data.discount_amount,
+               data.tax_amount, data.notes,
+               [[line.product_id, str(line.quantity), str(line.unit_price),
+                 str(line.discount_amount)] for line in data.lines]]
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=True).encode()).hexdigest()
 
 
 def _complete_sale(conn: oracledb.Connection, data: SaleFormData) -> int:
@@ -128,6 +135,15 @@ def _complete_sale(conn: oracledb.Connection, data: SaleFormData) -> int:
         raise ValidationError("Agregue al menos un producto a la venta.")
     if data.payment_method not in PAYMENT_METHODS:
         raise ValidationError("Método de pago no válido.")
+    if not re.fullmatch(r"[0-9a-f]{32}", data.request_key):
+        raise ValidationError("El identificador de confirmación no es válido.")
+    request_hash = _request_hash(data)
+    sales_repository.lock_checkout(conn)
+    existing = sales_repository.find_request(conn, data.request_key)
+    if existing is not None:
+        if existing[1] != request_hash or existing[2] != current.id:
+            raise ValidationError("Esta confirmación ya se utilizó para otra venta.")
+        return existing[0]
 
     if data.owner_id is not None:
         owner = owner_repository.get_by_id(conn, data.owner_id)
@@ -143,7 +159,14 @@ def _complete_sale(conn: oracledb.Connection, data: SaleFormData) -> int:
     # (product_id, lot_id, qty, unit_price, line_discount, line_total)
     subtotal = Decimal("0")
 
+    seen_products: set[int] = set()
     for line in data.lines:
+        if line.product_id in seen_products:
+            raise ValidationError("Agrupe cada producto en una sola línea del carrito.")
+        seen_products.add(line.product_id)
+        if not all(value.is_finite() for value in
+                   (line.quantity, line.unit_price, line.discount_amount)):
+            raise ValidationError("Las cantidades e importes deben ser números finitos.")
         if line.quantity <= 0:
             raise ValidationError("La cantidad de cada línea debe ser mayor que cero.")
         if line.unit_price < 0:
@@ -156,6 +179,8 @@ def _complete_sale(conn: oracledb.Connection, data: SaleFormData) -> int:
             raise ValidationError("Hay un producto inexistente o inactivo en el carrito.")
 
         qty = _money(line.quantity)
+        if qty <= 0:
+            raise ValidationError("La cantidad mínima es 0.01.")
         unit_price = _money(line.unit_price)
         line_discount = _money(line.discount_amount)
         line_gross = _money(qty * unit_price)
@@ -200,6 +225,8 @@ def _complete_sale(conn: oracledb.Connection, data: SaleFormData) -> int:
         payment_method=data.payment_method,
         status="COMPLETED",
         notes=notes,
+        request_key=data.request_key,
+        request_hash=request_hash,
     )
 
     for product_id, lot_id, qty, unit_price, chunk_discount, chunk_total in allocations:
@@ -238,6 +265,11 @@ def _complete_sale(conn: oracledb.Connection, data: SaleFormData) -> int:
             notes=f"Venta {invoice}",
         )
 
+    audit_repository.insert_event(
+        conn, user_id=current.id, entity_type="SALE", entity_id=sale_id,
+        action="COMPLETE", new_data={"invoice_number": invoice,
+                                    "total": str(total), "payment_method": data.payment_method},
+    )
     logger.info("Venta completada: id=%s invoice=%s total=%s", sale_id, invoice, total)
     return sale_id
 
@@ -250,7 +282,7 @@ def _allocate_fifo(
 ) -> list[tuple[int, Decimal]]:
     """Asigna cantidad a lotes con stock, FIFO por vencimiento / recepción."""
     lots = inventory_repository.list_lots_for_product(
-        conn, product_id, available_only=True
+        conn, product_id, available_only=True, for_update=True
     )
     remaining = quantity
     chunks: list[tuple[int, Decimal]] = []

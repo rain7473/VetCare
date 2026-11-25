@@ -31,11 +31,14 @@ from views.inventory.inventory_dialogs import (
     SuppliersDialog,
 )
 from widgets.barcode_scanner import BarcodeScannerInput
+from views.inventory.barcode_label_dialog import BarcodeLabelDialog
+from views.inventory.product_detail_dialog import ProductDetailDialog
 
 _COLUMNS = [
     "Producto",
     "Categoría",
     "SKU",
+    "Código de barras",
     "Stock",
     "Mínimo",
     "Precio",
@@ -67,7 +70,7 @@ class InventoryPage(QWidget):
         header.addStretch()
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Buscar producto, SKU o ubicación...")
+        self.search_input.setPlaceholderText("Nombre, código, SKU o ubicación…")
         self.search_input.setFixedWidth(220)
         self.search_input.textChanged.connect(self._apply_filters)
         header.addWidget(self.search_input)
@@ -115,12 +118,24 @@ class InventoryPage(QWidget):
         self.table.setSortingEnabled(True)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        if self._can_manage:
-            self.table.doubleClicked.connect(lambda _: self._on_edit())
+        for column in (2, 3, 4, 5, 6, 8):
+            self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        self.table.doubleClicked.connect(lambda _: self._on_detail())
         layout.addWidget(self.table, stretch=1)
 
         actions = QHBoxLayout()
         actions.addStretch()
+
+        detail = QPushButton("Detalles", self)
+        set_button_icon(detail, "view", color="#008FA3")
+        detail.setProperty("variant", "secondary")
+        detail.clicked.connect(self._on_detail)
+        actions.addWidget(detail)
+        label = QPushButton("Etiqueta", self)
+        set_button_icon(label, "barcode", color="#008FA3")
+        label.setProperty("variant", "secondary")
+        label.clicked.connect(self._on_label)
+        actions.addWidget(label)
 
         self.edit_button = QPushButton("Editar", self)
         set_button_icon(self.edit_button, "edit", color="#008FA3")
@@ -199,6 +214,7 @@ class InventoryPage(QWidget):
                 QStandardItem(product.name),
                 QStandardItem(product.category_name or "—"),
                 QStandardItem(product.sku or "—"),
+                QStandardItem(product.barcode or "—"),
                 QStandardItem(f"{product.stock_available:g}"),
                 QStandardItem(f"{product.minimum_stock:g}"),
                 QStandardItem(f"${product.sale_price:.2f}"),
@@ -207,8 +223,9 @@ class InventoryPage(QWidget):
             ]
             for item in row:
                 item.setData(product.id, Qt.UserRole)
+                item.setToolTip(item.text())
             if product.is_low_stock and product.is_active:
-                row[3].setForeground(QColor(Colors.ERROR))
+                row[4].setForeground(QColor(Colors.ERROR))
             if not product.is_active:
                 for item in row:
                     item.setForeground(QColor(Colors.MUTED))
@@ -238,7 +255,7 @@ class InventoryPage(QWidget):
                 f"No hay un producto activo con el código «{code}».",
             )
             return
-        self.search_input.setText(product.sku or product.name)
+        self.search_input.setText(product.barcode)
         self._select_product_id(product.id)
         QMessageBox.information(
             self,
@@ -246,10 +263,10 @@ class InventoryPage(QWidget):
             (
                 f"{product.name}\n"
                 f"SKU: {product.sku or '—'}\n"
+                f"Código: {product.barcode}\n"
                 f"Stock: {product.stock_available:g} {product.unit}\n"
                 f"Precio: ${product.sale_price:.2f}\n\n"
-                "En el módulo de Ventas (Obj. 21) el escaneo podrá "
-                "agregar el producto al carrito."
+                "En Ventas, este código agrega el producto al carrito."
             ),
         )
 
@@ -267,6 +284,25 @@ class InventoryPage(QWidget):
     def _on_new(self) -> None:
         if ProductDialog(parent=self).exec():
             self.refresh()
+
+    def _on_label(self) -> None:
+        product = self._selected_product()
+        if product is None:
+            QMessageBox.information(self, "Etiqueta", "Seleccione un producto.")
+            return
+        try:
+            product = inventory_service.get_product(product.id)
+            if product is None or not product.barcode:
+                raise ValidationError("El producto no tiene código. Edítelo, genere uno y guarde los cambios.")
+            BarcodeLabelDialog(product, self).exec()
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
+            QMessageBox.warning(self, "Etiqueta", str(exc))
+
+    def _on_detail(self) -> None:
+        product = self._selected_product()
+        if product is None:
+            return
+        ProductDetailDialog(product, self).exec()
 
     def _on_edit(self) -> None:
         product = self._selected_product()

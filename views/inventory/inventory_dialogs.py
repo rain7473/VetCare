@@ -6,7 +6,8 @@ from datetime import date
 
 from utils.icons import set_button_icon
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, QTimer, Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -21,6 +22,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTextEdit,
     QVBoxLayout,
+    QScrollArea,
+    QWidget,
 )
 
 from database.connection import DatabaseConnectionError
@@ -35,6 +38,9 @@ from services.inventory_service import (
 )
 from services.permission_service import PermissionDeniedError
 from utils.validators import ValidationError
+from utils.barcode_label import BarcodeLabel, label_image
+from utils.barcodes import validate_barcode
+from decimal import Decimal
 from widgets.dynamic_selector import DynamicEntitySelector, SelectorItem
 from widgets.managed_dialog import ManagedDialog
 
@@ -95,6 +101,7 @@ class ProductDialog(ManagedDialog):
         self.created_id: int | None = None
         self.setWindowTitle("Editar producto" if product else "Nuevo producto")
         self.setMinimumWidth(520)
+        self.resize(620, 740)
         self._categories: list[tuple[int | None, str]] = [(None, "— Sin categoría —")]
         self._build_ui()
         self._load_categories()
@@ -124,8 +131,28 @@ class ProductDialog(ManagedDialog):
         form.addRow("SKU", self.sku_input)
 
         self.barcode_input = QLineEdit()
-        self.barcode_input.setPlaceholderText("Opcional")
-        form.addRow("Código de barras", self.barcode_input)
+        self.barcode_input.setMaxLength(100)
+        self.barcode_input.setPlaceholderText("Código del fabricante o lector USB")
+        self.barcode_input.setToolTip("EAN-13, UPC-A o Code 128. Enter conserva el código y pasa a Unidad.")
+        # Enter del lector no debe activar el botón Guardar del diálogo.
+        self.barcode_input.returnPressed.connect(lambda: self.unit_input.setFocus())
+        self.generate_barcode_button = QPushButton("Generar")
+        self.generate_barcode_button.setProperty("variant", "secondary")
+        set_button_icon(self.generate_barcode_button, "barcode", color="#008FA3")
+        self.generate_barcode_button.clicked.connect(self._generate_barcode)
+        barcode_row = QHBoxLayout()
+        barcode_row.addWidget(self.barcode_input, stretch=1)
+        barcode_row.addWidget(self.generate_barcode_button)
+        form.addRow("Código de barras", barcode_row)
+        self.barcode_preview = QLabel("Sin código de barras")
+        self.barcode_preview.setAlignment(Qt.AlignCenter)
+        self.barcode_preview.setFixedHeight(100)
+        form.addRow("Vista previa", self.barcode_preview)
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(120)
+        self._preview_timer.timeout.connect(self._update_barcode_preview)
+        self.barcode_input.textChanged.connect(self._barcode_changed)
 
         self.unit_input = QLineEdit()
         self.unit_input.setPlaceholderText("ej. unidad, caja, ml")
@@ -136,6 +163,8 @@ class ProductDialog(ManagedDialog):
         self.price_input.setDecimals(2)
         self.price_input.setPrefix("$ ")
         form.addRow("Precio venta", self.price_input)
+        self.price_input.valueChanged.connect(lambda: self._preview_timer.start())
+        self.name_input.textChanged.connect(lambda: self._preview_timer.start())
 
         self.min_stock_input = QDoubleSpinBox()
         self.min_stock_input.setRange(0, 1_000_000)
@@ -160,8 +189,14 @@ class ProductDialog(ManagedDialog):
         if self._product is None:
             self.active_check.setVisible(False)
         form.addRow("", self.active_check)
-
-        layout.addLayout(form)
+        form_container = QWidget()
+        form_container.setObjectName("appBackground")
+        form_container.setLayout(form)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setWidget(form_container)
+        layout.addWidget(scroll, stretch=1)
 
         self.error_label = QLabel("")
         self.error_label.setObjectName("errorLabel")
@@ -179,6 +214,43 @@ class ProductDialog(ManagedDialog):
         save.clicked.connect(self._on_save)
         actions.addWidget(save)
         layout.addLayout(actions)
+        for button in self.findChildren(QPushButton):
+            button.setAutoDefault(False)
+
+    def _barcode_changed(self) -> None:
+        # Incluso si se vacía el campo, no generar sobre un código del fabricante guardado.
+        self.generate_barcode_button.setEnabled(
+            not self.barcode_input.text().strip()
+            and not (self._product and self._product.barcode)
+        )
+        self._preview_timer.start()
+
+    def _generate_barcode(self) -> None:
+        if self.barcode_input.text().strip() or (self._product and self._product.barcode):
+            return
+        try:
+            self.barcode_input.setText(inventory_service.generate_barcode())
+            self._update_barcode_preview()
+        except (ValidationError, PermissionDeniedError, DatabaseConnectionError) as exc:
+            self.error_label.setText(str(exc))
+            self.error_label.setVisible(True)
+
+    def _update_barcode_preview(self) -> None:
+        self.barcode_preview.clear()
+        try:
+            code = validate_barcode(self.barcode_input.text())
+            if not code:
+                self.barcode_preview.setText("Sin código de barras")
+                return
+            image = label_image(BarcodeLabel(
+                self.name_input.text(), code, Decimal(str(self.price_input.value()))
+            ))
+            self.barcode_preview.setPixmap(QPixmap.fromImage(image).scaled(
+                400, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            ))
+            self.barcode_preview.setToolTip("Guarde el producto; seleccione Etiqueta en Inventario para imprimir o exportar.")
+        except ValidationError as exc:
+            self.barcode_preview.setText(str(exc))
 
     def _load_categories(self) -> None:
         try:

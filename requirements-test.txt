@@ -1,0 +1,4 @@
+-r requirements.txt
+# Solo para verificar lectura independiente de etiquetas y rasterizar el PDF.
+zxing-cpp>=3.1,<4
+PyMuPDF>=1.26,<2

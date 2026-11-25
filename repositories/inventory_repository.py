@@ -453,20 +453,28 @@ def _row_to_lot(row: tuple) -> InventoryLot:
 
 
 def list_lots_for_product(
-    conn: oracledb.Connection, product_id: int, *, available_only: bool = False
+    conn: oracledb.Connection, product_id: int, *, available_only: bool = False,
+    for_update: bool = False,
 ) -> list[InventoryLot]:
     sql = _LOT_SELECT + " WHERE l.product_id = :product_id"
     if available_only:
         sql += " AND l.quantity_available > 0"
-    sql += " ORDER BY l.expiry_date NULLS LAST, l.received_at"
+    sql += " ORDER BY l.expiry_date NULLS LAST, l.received_at, l.id"
+    if for_update:
+        sql += " FOR UPDATE OF l.quantity_available"
     with conn.cursor() as cur:
         cur.execute(sql, {"product_id": product_id})
         return [_row_to_lot(row) for row in cur.fetchall()]
 
 
-def get_lot(conn: oracledb.Connection, lot_id: int) -> InventoryLot | None:
+def get_lot(
+    conn: oracledb.Connection, lot_id: int, *, for_update: bool = False
+) -> InventoryLot | None:
+    sql = _LOT_SELECT + " WHERE l.id = :id"
+    if for_update:
+        sql += " FOR UPDATE OF l.quantity_available"
     with conn.cursor() as cur:
-        cur.execute(_LOT_SELECT + " WHERE l.id = :id", {"id": lot_id})
+        cur.execute(sql, {"id": lot_id})
         row = cur.fetchone()
     return _row_to_lot(row) if row else None
 

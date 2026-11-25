@@ -26,6 +26,7 @@ from models.inventory import (
 from repositories import audit_repository, inventory_repository
 from services import permission_service, session
 from utils import validators
+from utils.barcodes import new_internal_code, validate_barcode, equivalent_upc_ean
 from utils.validators import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -187,9 +188,7 @@ def get_product(product_id: int) -> Product | None:
 def find_by_barcode(barcode: str) -> Product | None:
     """Busca un producto activo por código de barras exacto."""
     permission_service.require_permission("INVENTORY_READ")
-    code = validators.validate_required_text(
-        barcode, "El código de barras", 100
-    )
+    code = validate_barcode(barcode, required=True)
     with connection_scope() as conn:
         return _find_active_by_barcode(conn, code)
 
@@ -198,6 +197,9 @@ def _find_active_by_barcode(
     conn, barcode: str
 ) -> Product | None:
     product = inventory_repository.find_by_barcode(conn, barcode)
+    alternate = equivalent_upc_ean(barcode)
+    if product is None and alternate:
+        product = inventory_repository.find_by_barcode(conn, alternate)
     if product is None or not product.is_active:
         return None
     return product
@@ -205,16 +207,39 @@ def _find_active_by_barcode(
 
 def create_product(data: ProductFormData) -> int:
     permission_service.require_permission("INVENTORY_MANAGE")
-    with connection_scope(commit=True) as conn:
-        return _save_product(conn, None, data)
+    try:
+        with connection_scope(commit=True) as conn:
+            return _save_product(conn, None, data)
+    except oracledb.IntegrityError as exc:
+        _duplicate_product_error(exc)
 
 
 def update_product(product_id: int, data: ProductFormData) -> None:
     permission_service.require_permission("INVENTORY_MANAGE")
-    with connection_scope(commit=True) as conn:
-        if inventory_repository.get_product(conn, product_id) is None:
-            raise ValidationError("El producto no existe.")
-        _save_product(conn, product_id, data)
+    try:
+        with connection_scope(commit=True) as conn:
+            if inventory_repository.get_product(conn, product_id) is None:
+                raise ValidationError("El producto no existe.")
+            _save_product(conn, product_id, data)
+    except oracledb.IntegrityError as exc:
+        _duplicate_product_error(exc)
+
+
+def _duplicate_product_error(exc: oracledb.IntegrityError) -> None:
+    if getattr(exc.args[0], "code", None) == 1:
+        raise ValidationError("Ya existe un producto con ese código de barras o SKU.") from exc
+    raise exc
+
+
+def generate_barcode() -> str:
+    """Propone un código; se persiste junto con el producto al guardar."""
+    permission_service.require_permission("INVENTORY_MANAGE")
+    with connection_scope() as conn:
+        for _ in range(5):
+            code = new_internal_code()
+            if not inventory_repository.barcode_exists(conn, code):
+                return code
+    raise ValidationError("No se pudo generar un código único. Intente nuevamente.")
 
 
 def _save_product(
@@ -223,7 +248,7 @@ def _save_product(
     name = validators.validate_required_text(data.name, "El nombre del producto", 150)
     unit = validators.validate_required_text(data.unit, "La unidad", 30)
     sku = validators.validate_optional_text(data.sku, "El SKU", 80)
-    barcode = validators.validate_optional_text(data.barcode, "El código de barras", 100)
+    barcode = validate_barcode(data.barcode)
     description = validators.validate_optional_text(
         data.description, "La descripción", 4000
     )
@@ -426,7 +451,7 @@ def _adjust_stock(conn: oracledb.Connection, data: StockAdjustData) -> int:
     if data.movement_type not in {"ADJUSTMENT_IN", "ADJUSTMENT_OUT", "EXPIRED"}:
         raise ValidationError("Tipo de ajuste no permitido.")
 
-    lot = inventory_repository.get_lot(conn, data.lot_id)
+    lot = inventory_repository.get_lot(conn, data.lot_id, for_update=True)
     if lot is None:
         raise ValidationError("El lote no existe.")
 

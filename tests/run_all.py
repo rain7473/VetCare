@@ -36,6 +36,7 @@ TEST_MODULES = (
     "tests.qurl_test",
     "tests.inventory_test",
     "tests.barcode_test",
+    "tests.barcode_system_test",
     "tests.dynamic_selector_test",
     "tests.sales_test",
     "tests.dashboard_test",

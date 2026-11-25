@@ -4,7 +4,7 @@ Sistema de Gestión Integral para Clínica Veterinaria. Aplicación de escritori
 en Python/PySide6 conectada a Oracle XE para operación clínica, administrativa
 y comercial.
 
-Los objetivos 1–25 están implementados y la suite general pasa 27 módulos de
+Los objetivos 1–25 están implementados y la suite general pasa 30 módulos de
 prueba. El esquema Oracle se considera preexistente: la aplicación no crea ni
 modifica tablas automáticamente.
 
@@ -17,8 +17,9 @@ modifica tablas automáticamente.
 - Cálculo farmacológico basado únicamente en parámetros configurados.
 - Cirugía, vacunas, hospitalización, monitoreo y alertas clínicas.
 - Historial clínico `DRAFT → FINALIZED → SEALED`, SHA-256 y enmiendas append-only.
-- Inventario por lotes, movimientos, stock bajo, vencimientos y barcode USB.
-- Ventas atómicas con descuento FIFO de lotes.
+- Inventario por lotes, movimientos, stock bajo, vencimientos y barcode USB,
+  generación Code 128 y etiquetas imprimibles/exportables como PNG o PDF.
+- Ventas atómicas con descuento FIFO de lotes y confirmaciones idempotentes.
 - Dashboard con métricas y actividad adaptadas a cada rol.
 - Auditoría administrativa append-only con filtros y detalle JSON.
 - Selectores dinámicos reutilizables con búsqueda por múltiples atributos,
@@ -150,12 +151,48 @@ Más detalle en la [guía técnica](docs/TECHNICAL_GUIDE.md).
 La suite completa es el comando recomendado:
 
 ```powershell
+python -m pip install -r requirements-test.txt
 python -m tests.run_all
 ```
 
-Ejecuta 25 módulos en procesos aislados, fuerza Qt offscreen y cubre conexión,
+Ejecuta 30 módulos en procesos aislados, fuerza Qt offscreen y cubre conexión,
 arquitectura, seguridad, permisos, módulos clínicos, inventario, ventas,
 dashboard, auditoría e interfaz. Los tests que escriben usan INSERT + ROLLBACK.
+La prueba de persistencia de barcode crea un producto temporal confirmado,
+lo lee desde otro proceso y lo elimina por su ID y SKU en `finally`.
+
+### Códigos de barras en Inventario y Ventas
+
+La base local ya tiene aplicada la migración aditiva de confirmaciones de ventas.
+Para instalar este cambio en otro esquema existente, ejecute explícitamente:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m scripts.apply_barcode_migration
+```
+
+En **Inventario → Producto / Editar**, escriba o escanee el código del fabricante;
+si el campo está vacío, pulse **Generar** para crear un Code 128 interno. Guarde
+el producto para persistirlo. Seleccione **Etiqueta** en Inventario para imprimir
+o exportar PNG/PDF con nombre, código y precio. El botón Generar no sustituye
+códigos existentes. La búsqueda admite nombre, código, SKU y ubicación.
+
+En **Ventas → Agregar venta**, el campo **Escanear o ingresar código** agrega una
+unidad al pulsar Enter. Repetir el mismo código aumenta la cantidad en una única
+fila. **F2** vuelve al lector; **F4** confirma y deja lista la siguiente venta.
+El stock se descuenta únicamente al confirmar, con validación transaccional.
+
+Para probar sin lector, copie el código de un producto, péguelo en ese campo y
+pulse Enter; repita para comprobar la cantidad. Las etiquetas se deben imprimir
+al 100 %, con papel de tamaño suficiente. La integración está verificada con
+Oracle real, Qt offscreen y lectura independiente de PNG y PDF rasterizado:
+
+```powershell
+python -m tests.barcode_system_test
+```
+
+Uso, archivos, migración y alcance de las pruebas en la
+[guía de códigos de barras](docs/BARCODES.md).
 
 Comandos útiles:
 
@@ -281,7 +318,9 @@ Archivos del rediseño: `models/dashboard.py`, `repositories/dashboard_repositor
   registros. Los avisos de escritorio agrupan novedades durante la sesión.
   Requieren VetCare abierto y notificaciones habilitadas en Windows; no existe
   un servicio externo para recibir push con la aplicación cerrada.
-- El barcode inicial asume un lector USB que actúa como teclado.
+- Los lectores USB deben operar como teclado y finalizar cada lectura con Enter.
+  La impresión física depende del papel y la configuración de la impresora;
+  la lectura digital de las exportaciones está verificada automáticamente.
 - El perfil de Mascotas muestra consultas, vacunas y el último peso clínico
   registrado según permisos. El esquema actual no incluye tamaño, notas
   propias de la mascota ni adjuntos: se muestran las observaciones clínicas
