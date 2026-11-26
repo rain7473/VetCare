@@ -31,3 +31,6 @@ data/
 *.log
 *.tmp
 startup_preview.png
+barcode_out.txt
+sales_out.txt
+smoke_out.txt
